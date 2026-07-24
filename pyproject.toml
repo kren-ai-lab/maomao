@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "maomao"
+version = "0.0.1"
+description = "Python workflows for constructing MAOMAO, an ontology-guided FAIR resource for harmonized peptide toxicity data."
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+license = { file = "LICENSE.txt" }
+
+authors = [
+    { name = "Kren AI Lab", email = "krenai@umag.cl" }
+]
+
+maintainers = [
+    { name = "Kren AI Lab", email = "krenai@umag.cl" }
+]
+
+keywords = [
+    "peptides",
+    "peptide toxicity",
+    "biological data resource",
+    "data integration",
+    "data harmonization",
+    "toxicity ontology",
+    "FAIR data",
+    "evidence integration",
+    "annotation ambiguity",
+    "protein language models",
+    "benchmark datasets",
+]
+
+dependencies = [
+    "pandas",
+    "tqdm",
+    "requests",
+    "rcsb-api",
+    "biopython==1.82",
+    "python-dotenv",
+    "pyyaml",
+    "typer",
+    "sylphy[all]",
+    "biosieve @ git+https://github.com/kren-ai-lab/biosieve.git@main",
+    "openpyxl",
+    "seaborn"
+]
+
+
+
+[project.urls]
+Homepage = "https://github.com/kren-ai-lab/maomao"
+Repository = "https://github.com/kren-ai-lab/maomao"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/maomao"]
