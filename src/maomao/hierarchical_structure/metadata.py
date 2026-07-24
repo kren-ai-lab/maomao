@@ -986,10 +986,6 @@ def build_maomao_metadata(
             "label_encoding": (
                 LABEL_ENCODING
             ),
-            "state_model": (
-                "mutually exclusive "
-                "endpoint states"
-            ),
             "state_priority": (
                 "endpoint-specific ambiguity "
                 "is retained and cannot be "
@@ -1047,12 +1043,6 @@ def build_maomao_metadata(
                     ),
                 },
             },
-            "row_status_rule": (
-                "integration-stage internal "
-                "status indicators take "
-                "priority over the input "
-                "filename"
-            ),
         },
         (
             "controlled_vocabulary_and_"
@@ -1386,58 +1376,6 @@ def build_maomao_metadata(
         "sequence_statistics": (
             sequence_statistics(wide)
         ),
-        "quality_control": {
-            "assertions_passed": (
-                assertions_passed
-            ),
-            "assertions": (
-                assertions_records
-            ),
-            "status_file_mismatches": (
-                dataframe_audit_summary(
-                    results.get(
-                        "status_file_mismatches"
-                    ),
-                    "status_file_mismatches",
-                )
-            ),
-            "status_membership_conflicts": (
-                dataframe_audit_summary(
-                    results.get(
-                        (
-                            "status_membership_"
-                            "conflicts"
-                        )
-                    ),
-                    (
-                        "status_membership_"
-                        "conflicts"
-                    ),
-                )
-            ),
-            "source_conflicts": (
-                dataframe_audit_summary(
-                    results.get(
-                        "source_conflicts"
-                    ),
-                    "source_conflicts",
-                )
-            ),
-            "input_manifest": (
-                results[
-                    "manifest"
-                ].to_dict(
-                    orient="records"
-                )
-                if isinstance(
-                    results.get(
-                        "manifest"
-                    ),
-                    pd.DataFrame,
-                )
-                else []
-            ),
-        },
         "output_files": (
             output_file_metadata(
                 cfg.output_root
