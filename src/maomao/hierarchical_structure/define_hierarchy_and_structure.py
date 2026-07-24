@@ -813,7 +813,17 @@ def build_wide_pivot(evidence_long: pd.DataFrame):
             endpoint_data["status"]
         )
 
-    return wide.reset_index()
+    wide = wide.reset_index()
+
+    wide.insert(
+        0,
+        "id",
+        [
+            f"seq_{index}"
+            for index in range(1, len(wide) + 1)
+        ],
+    )
+    return wide
 
 
 def positive_support_category(value) -> str:

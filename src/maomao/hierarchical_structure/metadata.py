@@ -967,6 +967,8 @@ def build_maomao_metadata(
             "filename": (
                 "maomao_sequence_pivot.csv"
             ),
+            "identifier_column": "id",
+            "identifier_format": "seq_<sequential_integer>",
             "sequence_column": "sequence",
             "annotation_columns": (
                 FINAL_ENDPOINTS
