@@ -1207,8 +1207,6 @@ def build_all(cfg: Config):
         ),
         "assertions_passed": bool(assertions["passed"].all()),
     }
-    with open(cfg.output_root / "maomao_audit_metadata.json", "w", encoding="utf-8") as handle:
-        json.dump(metadata, handle, indent=2, ensure_ascii=False)
 
     return {
         "evidence_long": evidence_long,
