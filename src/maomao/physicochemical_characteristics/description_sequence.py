@@ -8,7 +8,7 @@ from io import StringIO
 from typing import Union, Mapping, Any
 from matplotlib.patches import Patch
 from sklearn.decomposition import PCA
-from peptide_toxicity_classifier.integrated_dataset_utils import *
+from maomao.parsing.integrated_dataset_utils import *
 from roxy.eda.summary import build_report
 from roxy.report import dataset_report_to_html
 
