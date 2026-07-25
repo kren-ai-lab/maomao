@@ -264,7 +264,7 @@ maomao/
 | Snakemake 9.x | Workflow dependency management and reproducible execution. |
 | Sylphy | Protein language model embeddings and one-hot sequence representations. |
 | BioSieve | Reproducible dataset partitioning. |
-| ROXI | Dataset characterization. |
+| ROXY | Dataset characterization. |
 
 A CUDA-capable GPU is recommended for large protein language model embeddings but is not required for the resource-construction notebooks or one-hot encoding.
 
