@@ -21,6 +21,7 @@ from matplotlib.colors import LinearSegmentedColormap, Normalize, to_rgb
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle, Patch
+from matplotlib.colors import to_rgb, to_hex
 import matplotlib.patheffects as pe
 
 
@@ -33,7 +34,7 @@ __all__ = [
     "style_axes",
     "style_legend",
     "compute_top_level_toxicity_summary",
-    "plot_dataset_composition_by_endpoint_horizontal",
+    "plot_dataset_composition_by_endpoint_vertical",
     "plot_all_effects_cooccurrence_heatmap",
     "compute_effect_cooccurrence"
 ]
@@ -303,18 +304,17 @@ def _normalize_ambiguity_bin(value) -> str | None:
 
 
 
-def plot_dataset_composition_by_endpoint_horizontal(
+
+def plot_dataset_composition_by_endpoint_vertical(
     df_main: pd.DataFrame,
-    df_amb: pd.DataFrame,
-    effect_cols_main: list[str] | None = None,
-    effect_cols_amb: list[str] | None = None,
+    effect_cols: list[str] | None = None,
     order: list[str] | None = None,
     endpoint_colors: dict[str, str] | None = None,
     endpoint_label_map: dict[str, str] | None = None,
     excluded_endpoints: list[str] | set[str] | tuple[str] | None = None,
-    figsize: tuple[float, float] = (7.5, 4.8),
+    figsize: tuple[float, float] = (9, 7),
     title: str | None = None,
-    xlabel: str = "Percentage of sequences",
+    ylabel: str = "Percentage of sequences",
     style: dict | None = None,
     title_fontsize: int = 14,
     tick_fontsize: int = 10,
@@ -322,65 +322,48 @@ def plot_dataset_composition_by_endpoint_horizontal(
     annot_fontsize: int = 10,
     legend_fontsize: int = 10,
     legend_title_fontsize: int = 10,
-    legend_marker_size: int = 18,
+    legend_marker_size: int = 16,
     bold_fonts: bool = False,
-    legend_loc: str = "lower center",
-    legend_bbox_to_anchor: tuple[float, float] = (0.5, -0.22),
+    legend_loc: str = "upper center",
+    legend_bbox_to_anchor: tuple[float, float] = (0.5, -0.14),
     legend_frameon: bool = True,
     save_path: str | None = None,
     dpi: int = 300,
-
-    # New visual controls.
     small_label_threshold: float = 5.0,
     hide_label_below_pct: float | None = None,
     outside_label_color: str = "#5F6872",
-    outside_label_offset: float = 1.4,
-    bar_height: float = 0.62,
-    row_spacing: float = 1.12,
+    outside_label_offset: float = 2.2,
+    bar_width: float = 0.72,
+    column_spacing: float = 1.15,
 ):
     """
-    Draw a horizontal stacked bar chart showing dataset composition by toxicity endpoint.
+    Vertical stacked bar chart of dataset composition by endpoint.
 
-    The visual labels are displayed in English.
+    Included statuses:
+    - 0 = consistent negatives
+    - 1 = consistent positives
+    - 2 = ambiguous
+    - 3 = unlabeled
 
-    Parameters added:
-    - small_label_threshold:
-        Percentages below this value are placed outside the bar.
-    - hide_label_below_pct:
-        If set, percentages below this value are not annotated.
-        Example: use 1.0 to hide labels below 1%.
-    - outside_label_color:
-        Color used for labels outside the bar and their guide lines.
-    - outside_label_offset:
-        Horizontal distance between the small segment and its external label.
-    - bar_height:
-        Height of each horizontal bar.
-    - row_spacing:
-        Vertical distance between bar centers. Controls uniform spacing.
+    Code 999 (no information) is excluded from the denominator.
     """
     style = get_panel_style() if style is None else style
     fontweight = "bold" if bold_fonts else "normal"
 
     df_main = _copy_with_lowercase_columns(df_main)
-    df_amb = _copy_with_lowercase_columns(df_amb)
 
-    if effect_cols_main is None:
-        effect_cols_main = [
+    if effect_cols is None:
+        effect_cols = [
             "toxic",
-            "hemolytic",
             "cytotoxic",
-            "neurotoxic",
+            "hemolytic",
             "cytolysis",
+            "neurotoxic",
             "embryotoxic",
             "ichthyotoxic",
         ]
     else:
-        effect_cols_main = _normalize_names(effect_cols_main)
-
-    if effect_cols_amb is None:
-        effect_cols_amb = ["toxic", "hemolytic", "cytotoxic", "neurotoxic"]
-    else:
-        effect_cols_amb = _normalize_names(effect_cols_amb)
+        effect_cols = _normalize_names(effect_cols)
 
     if order is None:
         order = [
@@ -400,22 +383,17 @@ def plot_dataset_composition_by_endpoint_horizontal(
     )
 
     order = [endpoint for endpoint in order if endpoint not in excluded_endpoints]
-    effect_cols_main = [
-        endpoint for endpoint in effect_cols_main if endpoint not in excluded_endpoints
-    ]
-    effect_cols_amb = [
-        endpoint for endpoint in effect_cols_amb if endpoint not in excluded_endpoints
-    ]
+    effect_cols = [endpoint for endpoint in effect_cols if endpoint not in excluded_endpoints]
 
     if endpoint_colors is None:
         endpoint_colors = {
-            "toxic": "#CDA0B0",
-            "cytotoxic": "#DFD8E7",
-            "neurotoxic": "#DFD8E7",
-            "embryotoxic": "#DFD8E7",
-            "ichthyotoxic": "#DFD8E7",
-            "hemolytic": "#FDE8D7",
-            "cytolysis": "#FDE8D7",
+            "toxic": "#C5A3B0",
+            "cytotoxic": "#CEC4DE",
+            "neurotoxic": "#CEC4DE",
+            "embryotoxic": "#CEC4DE",
+            "ichthyotoxic": "#CEC4DE",
+            "hemolytic": "#DEB089",
+            "cytolysis": "#DEB089",
         }
     else:
         endpoint_colors = {str(k).lower(): v for k, v in endpoint_colors.items()}
@@ -432,34 +410,28 @@ def plot_dataset_composition_by_endpoint_horizontal(
             "cytolytic": "Cytolytic",
         }
     else:
-        endpoint_label_map = {
-            str(k).lower(): v for k, v in endpoint_label_map.items()
-        }
+        endpoint_label_map = {str(k).lower(): v for k, v in endpoint_label_map.items()}
 
     status_label_map = {
         "consistent negatives": "Consistent negatives",
         "consistent positives": "Consistent positives",
         "ambiguous": "Ambiguous",
+        "unlabeled": "Unlabeled",
     }
 
-    _validate_required_columns(df_main, effect_cols_main, "df_main")
-    _validate_required_columns(df_amb, effect_cols_amb, "df_amb")
+    _validate_required_columns(df_main, effect_cols, "df_main")
 
-    positives = (df_main[effect_cols_main] == 1).sum()
-    negatives = (df_main[effect_cols_main] == 0).sum()
-
-    ambiguous = pd.Series(
-        {
-            col: df_amb[col].apply(_is_ambiguous_value).sum()
-            for col in effect_cols_amb
-        }
-    )
+    positives = (df_main[effect_cols] == 1).sum()
+    negatives = (df_main[effect_cols] == 0).sum()
+    ambiguous = (df_main[effect_cols] == 2).sum()
+    unlabeled = (df_main[effect_cols] == 3).sum()
 
     summary = pd.DataFrame(
         {
             "consistent negatives": negatives,
             "consistent positives": positives,
             "ambiguous": ambiguous,
+            "unlabeled": unlabeled,
         }
     ).fillna(0)
 
@@ -473,7 +445,7 @@ def plot_dataset_composition_by_endpoint_horizontal(
             for endpoint in row_totals[row_totals == 0].index
         ]
         raise ValueError(
-            f"The following endpoints have a total count equal to zero "
+            "The following endpoints have total count equal to zero "
             f"and cannot be converted to percentages: {zero_rows}"
         )
 
@@ -483,12 +455,21 @@ def plot_dataset_composition_by_endpoint_horizontal(
         "consistent negatives",
         "consistent positives",
         "ambiguous",
+        "unlabeled",
     ]
 
     symbol_map = {
         "consistent negatives": "−",
         "consistent positives": "+",
         "ambiguous": "?",
+        "unlabeled": "u",
+    }
+
+    hatch_map = {
+        "consistent negatives": None,
+        "consistent positives": None,
+        "ambiguous": None,
+        "unlabeled": "///",   # ayuda a distinguir unlabeled
     }
 
     def _format_percent(value: float) -> str:
@@ -498,26 +479,21 @@ def plot_dataset_composition_by_endpoint_horizontal(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    min_label_width = 7.0
+    x_positions = [i * column_spacing for i in range(len(summary_pct.index))]
 
-    # Fixed y positions to keep equal spacing between all bars.
-    y_positions = [
-        row_idx * row_spacing
-        for row_idx in range(len(summary_pct.index))
-    ]
-
-    for row_idx, endpoint in enumerate(summary_pct.index):
-        y = y_positions[row_idx]
+    for col_idx, endpoint in enumerate(summary_pct.index):
+        x = x_positions[col_idx]
 
         base = endpoint_colors.get(endpoint, "#BFBFBF")
 
         color_map = {
             "consistent negatives": _darken_color(base, amount=0.72),
-            "consistent positives": _darken_color(base, amount=0.88),
-            "ambiguous": _lighten_color(base, amount=0.1),
+            "consistent positives": _darken_color(base, amount=0.90),
+            "ambiguous": _lighten_color(base, amount=0.08),
+            "unlabeled": _lighten_color(base, amount=0.28),
         }
 
-        left_val = 0.0
+        bottom_val = 0.0
 
         for label_type in plot_order:
             value = float(summary_pct.loc[endpoint, label_type])
@@ -525,35 +501,33 @@ def plot_dataset_composition_by_endpoint_horizontal(
             if value <= 0:
                 continue
 
-            ax.barh(
-                y,
+            ax.bar(
+                x,
                 value,
-                left=left_val,
+                bottom=bottom_val,
                 color=color_map[label_type],
                 edgecolor="white",
-                linewidth=0.85,
-                height=bar_height,
+                linewidth=0.9,
+                width=bar_width,
+                hatch=hatch_map[label_type],
             )
 
-            # Optional: hide labels below a chosen threshold.
-            # Example: hide_label_below_pct=1.0 hides labels below 1%.
             if hide_label_below_pct is not None and value < hide_label_below_pct:
-                left_val += value
+                bottom_val += value
                 continue
 
             label_text = f"{symbol_map[label_type]} {_format_percent(value)}"
 
-            # Small segments: place label outside, in gray, with a guide line.
             if value < small_label_threshold:
-                x_anchor = left_val + value
-                x_text = x_anchor + outside_label_offset
+                y_anchor = bottom_val + value
+                y_text = y_anchor + outside_label_offset
 
                 ax.annotate(
                     label_text,
-                    xy=(x_anchor, y),
-                    xytext=(x_text, y),
-                    ha="left",
-                    va="center",
+                    xy=(x, y_anchor),
+                    xytext=(x, y_text),
+                    ha="center",
+                    va="bottom",
                     fontsize=max(7, annot_fontsize - 1),
                     color=outside_label_color,
                     alpha=0.98,
@@ -569,41 +543,40 @@ def plot_dataset_composition_by_endpoint_horizontal(
                     annotation_clip=False,
                     clip_on=False,
                 )
+            else:
+                ax.text(
+                    x,
+                    bottom_val + value / 2.0,
+                    label_text,
+                    ha="center",
+                    va="center",
+                    fontsize=annot_fontsize,
+                    color="white",
+                    alpha=0.94,
+                    fontweight="bold",
+                )
 
-                left_val += value
-                continue
+            bottom_val += value
 
-            # Larger segments: place label inside.
-            ax.text(
-                left_val + value / 2.0,
-                y,
-                label_text,
-                ha="center",
-                va="center",
-                fontsize=annot_fontsize,
-                color="white",
-                alpha=0.92,
-                fontweight="bold",
-            )
-
-            left_val += value
-
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels(
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(
         [
             endpoint_label_map.get(endpoint, str(endpoint).capitalize())
             for endpoint in summary_pct.index
         ],
+        rotation=25,
+        ha="right",
         fontsize=tick_fontsize,
         color=style["text_main"],
         fontweight=fontweight,
     )
 
-    ax.set_xlim(0, 100)
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: f"{x:.0f}%"))
+    ax.set_xlim(min(x_positions) - 0.6, max(x_positions) + 0.6)
+    ax.set_ylim(0, 106)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, pos: f"{y:.0f}%"))
 
-    ax.set_xlabel(
-        xlabel,
+    ax.set_ylabel(
+        ylabel,
         fontsize=label_fontsize,
         color=style["text_main"],
         fontweight=fontweight,
@@ -614,12 +587,12 @@ def plot_dataset_composition_by_endpoint_horizontal(
             title,
             fontsize=title_fontsize,
             color=style["text_main"],
-            pad=15,
+            pad=12,
             loc="left",
             fontweight=fontweight,
         )
 
-    style_axes(ax, style, grid_axis="x")
+    style_axes(ax, style, grid_axis="y")
 
     ax.tick_params(
         axis="x",
@@ -630,24 +603,15 @@ def plot_dataset_composition_by_endpoint_horizontal(
     ax.tick_params(
         axis="y",
         labelsize=tick_fontsize,
-        length=0,
         colors=style["text_main"],
     )
 
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontweight(fontweight)
 
-    # Keeps the first endpoint at the top and preserves equal margins.
-    if len(y_positions) > 0:
-        ax.set_ylim(
-            max(y_positions) + row_spacing * 0.55,
-            -row_spacing * 0.55,
-        )
-
     legend_handles = [
         Line2D(
-            [0],
-            [0],
+            [0], [0],
             linestyle="None",
             marker=r"$+$",
             markersize=legend_marker_size,
@@ -655,8 +619,7 @@ def plot_dataset_composition_by_endpoint_horizontal(
             label=status_label_map["consistent positives"],
         ),
         Line2D(
-            [0],
-            [0],
+            [0], [0],
             linestyle="None",
             marker=r"$-$",
             markersize=legend_marker_size,
@@ -664,13 +627,20 @@ def plot_dataset_composition_by_endpoint_horizontal(
             label=status_label_map["consistent negatives"],
         ),
         Line2D(
-            [0],
-            [0],
+            [0], [0],
             linestyle="None",
             marker=r"$?$",
             markersize=legend_marker_size,
             color="#6F7C89",
             label=status_label_map["ambiguous"],
+        ),
+        Line2D(
+            [0], [0],
+            linestyle="None",
+            marker=r"$u$",
+            markersize=legend_marker_size,
+            color="#6F7C89",
+            label=status_label_map["unlabeled"],
         ),
     ]
 
@@ -687,7 +657,7 @@ def plot_dataset_composition_by_endpoint_horizontal(
         handlelength=1.0,
         loc=legend_loc,
         bbox_to_anchor=legend_bbox_to_anchor,
-        ncol=3,
+        ncol=4,
     )
 
     style_legend(legend, style)
@@ -701,9 +671,6 @@ def plot_dataset_composition_by_endpoint_horizontal(
 
     fig.tight_layout()
 
-    # Leaves space on the right for labels placed outside the bar.
-    fig.subplots_adjust(right=0.88)
-
     if save_path is not None:
         fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
 
@@ -714,7 +681,6 @@ def plot_dataset_composition_by_endpoint_horizontal(
         endpoint_label_map.get(endpoint, str(endpoint).capitalize())
         for endpoint in summary_out.index
     ]
-
     summary_pct_out.index = [
         endpoint_label_map.get(endpoint, str(endpoint).capitalize())
         for endpoint in summary_pct_out.index
@@ -724,13 +690,15 @@ def plot_dataset_composition_by_endpoint_horizontal(
         status_label_map.get(col, col)
         for col in summary_out.columns
     ]
-
     summary_pct_out.columns = [
         status_label_map.get(col, col)
         for col in summary_pct_out.columns
     ]
 
     return fig, ax, summary_out, summary_pct_out
+
+
+
 
 
 
@@ -1005,7 +973,6 @@ def plot_all_effects_cooccurrence_heatmap(
 
     return fig, ax, im, cbar_obj, overlap_pct_out
 
-
 def compute_effect_cooccurrence(
     df: pd.DataFrame,
     effect_order: list[str] | None = None,
@@ -1014,42 +981,71 @@ def compute_effect_cooccurrence(
     verbose: bool = True,
 ) -> dict:
     """
-    Compute toxicity endpoint co-occurrence matrix and multi-endpoint statistics.
+    Compute positive toxicity-endpoint co-occurrence and multi-endpoint
+    statistics from the final MAOMAO sequence pivot.
+
+    Only values equal to `positive_value` are treated as positive.
+    Negative, ambiguous, unlabeled, and no-information states are treated
+    as non-positive for this specific analysis.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Input dataframe containing one binary column per toxicity endpoint.
+        Sequence-level pivot containing one column per toxicity endpoint.
 
     effect_order : list[str] | None
-        Ordered list of toxicity endpoint columns to include.
-        If None, a default toxicity endpoint order is used.
+        Ordered endpoint columns to include.
+
+        By default, the broad parent endpoint `toxic` is excluded so that
+        co-occurrence is calculated among the more specific toxicity
+        endpoints.
 
     positive_value : int | float | str
-        Value used to define positive annotations. Default is 1.
+        Value representing a positive endpoint annotation. Default is 1.
 
     alias_map : dict[str, list[str]] | None
-        Dictionary used to create compatible endpoint names from aliases.
-        Example: {"cytolysis": ["cytolytic"]}
+        Mapping used only when a requested canonical endpoint column is
+        missing but an alias is present.
+
+        Example
+        -------
+        {"cytolysis": ["cytolytic"]}
 
     verbose : bool
-        If True, print summary information.
+        Print summary information when True.
 
     Returns
     -------
     dict
         Dictionary containing:
+
         - effect_binary
         - row_totals
+        - positive_counts_by_endpoint
         - n_positive_endpoints_per_sequence
+        - has_positive_endpoint_mask
         - annotated_mask
         - multi_endpoint_mask
+        - n_positive_peptides
         - n_annotated_peptides
         - n_multi_endpoint_peptides
         - pct_multi_endpoint_peptides
         - cooccurrence_matrix
         - summary
+
+    Notes
+    -----
+    `annotated_mask` and `n_annotated_peptides` are retained as legacy
+    aliases for compatibility. They actually indicate sequences with at
+    least one positive endpoint, not every sequence having any annotation.
+
+    Because the final MAOMAO pivot contains hierarchy-propagated positive
+    states, parent-child co-occurrence may partly reflect ontology rules.
     """
+
+    # ---------------------------------------------------------
+    # Endpoints
+    # ---------------------------------------------------------
 
     if effect_order is None:
         effect_order = [
@@ -1061,72 +1057,233 @@ def compute_effect_cooccurrence(
             "cytolysis",
         ]
 
-    effect_order = [effect.lower() for effect in effect_order]
+    effect_order = [
+        str(effect).strip().lower()
+        for effect in effect_order
+    ]
+
+    if len(effect_order) != len(set(effect_order)):
+        raise ValueError(
+            "effect_order contains duplicated endpoint names."
+        )
+
+    # ---------------------------------------------------------
+    # Aliases
+    # ---------------------------------------------------------
 
     if alias_map is None:
         alias_map = {
             "cytolysis": ["cytolytic"],
         }
 
-    df_tmp = _copy_with_lowercase_columns(df)
+    alias_map = {
+        str(target).strip().lower(): [
+            str(alias).strip().lower()
+            for alias in aliases
+        ]
+        for target, aliases in alias_map.items()
+    }
 
-    # Create compatible columns from aliases when needed
+    # ---------------------------------------------------------
+    # Prepare dataframe
+    # ---------------------------------------------------------
+
+    df_tmp = df.copy()
+
+    df_tmp.columns = [
+        str(column).strip().lower()
+        for column in df_tmp.columns
+    ]
+
+    # Create a canonical endpoint column from an alias only if needed.
     for target_col, aliases in alias_map.items():
-        target_col = target_col.lower()
+        if target_col in df_tmp.columns:
+            continue
 
-        if target_col not in df_tmp.columns:
-            for alias in aliases:
-                alias = alias.lower()
-                if alias in df_tmp.columns:
-                    df_tmp[target_col] = df_tmp[alias]
-                    break
+        for alias in aliases:
+            if alias in df_tmp.columns:
+                df_tmp[target_col] = df_tmp[alias]
+                break
 
-    missing_cols = [col for col in effect_order if col not in df_tmp.columns]
+    missing_cols = [
+        column
+        for column in effect_order
+        if column not in df_tmp.columns
+    ]
 
     if missing_cols:
-        raise ValueError(f"Missing effect columns in dataframe: {missing_cols}")
+        raise ValueError(
+            "Missing effect columns in dataframe: "
+            f"{missing_cols}"
+        )
 
-    # Binary matrix: rows = sequences, columns = toxicity endpoints
-    effect_binary = (df_tmp[effect_order] == positive_value).astype(int)
+    # Convert endpoint columns to numeric when positive_value is numeric.
+    effect_data = df_tmp[effect_order].copy()
 
-    # Number of positive sequences per endpoint
-    row_totals = effect_binary.sum(axis=0)
+    if isinstance(positive_value, (int, float)):
+        effect_data = effect_data.apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
 
-    # Number of positive toxicity endpoints assigned to each peptide sequence
-    n_positive_endpoints_per_sequence = effect_binary.sum(axis=1)
+    # ---------------------------------------------------------
+    # Positive binary matrix
+    # ---------------------------------------------------------
 
-    # Peptides with at least one positive toxicity endpoint
-    annotated_mask = n_positive_endpoints_per_sequence > 0
+    # Rows: peptide sequences
+    # Columns: toxicity endpoints
+    effect_binary = effect_data.eq(positive_value).astype("int64")
 
-    # Peptides associated with more than one toxicity category
-    multi_endpoint_mask = n_positive_endpoints_per_sequence > 1
+    # Positive count for each endpoint.
+    positive_counts_by_endpoint = effect_binary.sum(axis=0).astype(int)
 
-    n_annotated_peptides = int(annotated_mask.sum())
-    n_multi_endpoint_peptides = int(multi_endpoint_mask.sum())
+    # Legacy output name retained for compatibility with the plotting
+    # function already being used.
+    row_totals = positive_counts_by_endpoint.copy()
 
-    pct_multi_endpoint_peptides = (
-        n_multi_endpoint_peptides / n_annotated_peptides * 100
-        if n_annotated_peptides > 0
-        else 0
+    # Number of positive endpoints associated with each sequence.
+    n_positive_endpoints_per_sequence = (
+        effect_binary.sum(axis=1).astype(int)
     )
 
-    # Co-occurrence matrix: endpoint-by-endpoint positive overlap counts
-    cooccurrence_matrix = effect_binary.T @ effect_binary
+    # At least one positive endpoint.
+    has_positive_endpoint_mask = (
+        n_positive_endpoints_per_sequence.ge(1)
+    )
+
+    # More than one positive endpoint.
+    multi_endpoint_mask = (
+        n_positive_endpoints_per_sequence.ge(2)
+    )
+
+    n_positive_peptides = int(
+        has_positive_endpoint_mask.sum()
+    )
+
+    n_multi_endpoint_peptides = int(
+        multi_endpoint_mask.sum()
+    )
+
+    pct_multi_endpoint_peptides = (
+        100.0
+        * n_multi_endpoint_peptides
+        / n_positive_peptides
+        if n_positive_peptides > 0
+        else 0.0
+    )
+
+    # ---------------------------------------------------------
+    # Co-occurrence
+    # ---------------------------------------------------------
+
+    # Cell [i, j] is the number of sequences positive for both
+    # endpoint i and endpoint j.
+    #
+    # int64 is essential here because int8 overflows for counts > 127.
+    effect_binary_for_counts = effect_binary.astype("int64")
+
+    cooccurrence_matrix = (
+        effect_binary_for_counts.T
+        .dot(effect_binary_for_counts)
+        .astype("int64")
+    )
+
+    cooccurrence_matrix.index.name = "endpoint"
+    cooccurrence_matrix.columns.name = "cooccurring_endpoint"
+
+    # The diagonal must equal the number of positive sequences
+    # for each endpoint.
+    observed_diagonal = pd.Series(
+        cooccurrence_matrix.to_numpy().diagonal(),
+        index=cooccurrence_matrix.index,
+        dtype="int64",
+    )
+
+    expected_diagonal = (
+        positive_counts_by_endpoint
+        .reindex(cooccurrence_matrix.index)
+        .astype("int64")
+    )
+
+    if not observed_diagonal.equals(expected_diagonal):
+        validation_table = pd.DataFrame(
+            {
+                "expected_positive_count": expected_diagonal,
+                "observed_diagonal": observed_diagonal,
+            }
+        )
+
+        validation_table["difference"] = (
+            validation_table["observed_diagonal"]
+            - validation_table["expected_positive_count"]
+        )
+
+        raise RuntimeError(
+            "The co-occurrence diagonal does not match the positive "
+            "endpoint counts.\n\n"
+            f"{validation_table}"
+        )
+
+    # ---------------------------------------------------------
+    # Dataset-level summary
+    # ---------------------------------------------------------
+
+    if "sequence" in df_tmp.columns:
+        n_unique_sequences = int(
+            df_tmp["sequence"].nunique(dropna=True)
+        )
+    else:
+        n_unique_sequences = int(df_tmp.shape[0])
 
     summary = {
-        "n_unique_sequences": int(df_tmp.shape[0]),
-        "n_annotated_peptides": n_annotated_peptides,
+        "n_rows": int(df_tmp.shape[0]),
+        "n_unique_sequences": n_unique_sequences,
+        "n_selected_endpoints": len(effect_order),
+        "selected_endpoints": effect_order.copy(),
+        "n_positive_peptides": n_positive_peptides,
+        "n_annotated_peptides": n_positive_peptides,
         "n_multi_endpoint_peptides": n_multi_endpoint_peptides,
         "pct_multi_endpoint_peptides": pct_multi_endpoint_peptides,
+        "positive_value": positive_value,
     }
+
+    if verbose:
+        print(
+            f"Sequences with at least one positive endpoint: "
+            f"{n_positive_peptides:,}"
+        )
+        print(
+            f"Sequences with multiple positive endpoints: "
+            f"{n_multi_endpoint_peptides:,}"
+        )
+        print(
+            f"Percentage among positive sequences: "
+            f"{pct_multi_endpoint_peptides:.2f}%"
+        )
 
     return {
         "effect_binary": effect_binary,
+
+        # Both names contain the same endpoint-level counts.
         "row_totals": row_totals,
-        "n_positive_endpoints_per_sequence": n_positive_endpoints_per_sequence,
-        "annotated_mask": annotated_mask,
+        "positive_counts_by_endpoint": positive_counts_by_endpoint,
+
+        "n_positive_endpoints_per_sequence": (
+            n_positive_endpoints_per_sequence
+        ),
+
+        "has_positive_endpoint_mask": has_positive_endpoint_mask,
+
+        # Legacy alias retained for compatibility.
+        "annotated_mask": has_positive_endpoint_mask,
+
         "multi_endpoint_mask": multi_endpoint_mask,
-        "n_annotated_peptides": n_annotated_peptides,
+
+        "n_positive_peptides": n_positive_peptides,
+
+        # Legacy alias retained for compatibility.
+        "n_annotated_peptides": n_positive_peptides,
+
         "n_multi_endpoint_peptides": n_multi_endpoint_peptides,
         "pct_multi_endpoint_peptides": pct_multi_endpoint_peptides,
         "cooccurrence_matrix": cooccurrence_matrix,
