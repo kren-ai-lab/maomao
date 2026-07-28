@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)]()
 [![Snakemake](https://img.shields.io/badge/Snakemake-9.x-green.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.txt)
-[![DOI](https://zenodo.org/badge/DOI/XXXX.svg)]()
+[![DOI](https://doi.org/10.5281/zenodo.21584414})]()
 
 Nicole Soto-García<sup>1</sup>, Roberto Uribe-Paredes<sup>1</sup>, Leandro Murgas-Saavedra<sup>1</sup>, Karen Oróstica<sup>2</sup>, Jorge González-Puelma<sup>3,4</sup>, Marcelo Navarrete<sup>3,4</sup>, Frederic Cadet<sup>5</sup>, and David Medina-Ortiz<sup>1,*</sup>.<br>
 
