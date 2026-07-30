@@ -4,14 +4,16 @@ global:
   reduction_root: "../.."
   seeds_file: "../../general_configs/random_seeds_30.csv"
 
+# Dataset definition and column names used throughout the workflow.
 dataset:
-  name: "maomao_cytotoxic"
+  name: "maomao_toxic"
   representation_dataset: "maomao"
-  input_data: "../data/cytotoxic/sequences.csv"
+  input_data: "../data/toxic/sequences.csv"
   sequence_col: "sequence"
   id_col: "id"
   label_col: "label"
-  
+
+# Numerical representations available to representation-dependent strategies.
 representations:
   esm2_t6_8M_UR50D:
     method: "sylphy_embedding"
@@ -19,7 +21,6 @@ representations:
     output_name: "esm2_t6_8M_UR50D"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "esm2_t6_8M_UR50D"
 
   ankh2_ext1:
     method: "sylphy_embedding"
@@ -27,7 +28,6 @@ representations:
     output_name: "ankh2_ext1"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "ankh2_ext1"
 
   ankh3_large:
     method: "sylphy_embedding"
@@ -35,7 +35,6 @@ representations:
     output_name: "ankh3_large"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "ankh3_large"
 
   esm2_t12_35M_UR50D:
     method: "sylphy_embedding"
@@ -43,7 +42,6 @@ representations:
     output_name: "esm2_t12_35M_UR50D"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "esm2_t12_35M_UR50D"
 
   esm2_t30_150M_UR50D:
     method: "sylphy_embedding"
@@ -51,7 +49,6 @@ representations:
     output_name: "esm2_t30_150M_UR50D"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "esm2_t30_150M_UR50D"
 
   esm2_t33_650M_UR50D:
     method: "sylphy_embedding"
@@ -59,7 +56,6 @@ representations:
     output_name: "esm2_t33_650M_UR50D"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "esm2_t33_650M_UR50D"
 
   esmc_300m:
     method: "sylphy_embedding"
@@ -67,7 +63,6 @@ representations:
     output_name: "esmc_300m"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "esmc_300m"
 
   mistral_prot_v1_134M:
     method: "sylphy_embedding"
@@ -75,7 +70,6 @@ representations:
     output_name: "mistral_prot_v1_134M"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "mistral_prot_v1_134M"
 
   prot_bert:
     method: "sylphy_embedding"
@@ -83,7 +77,6 @@ representations:
     output_name: "prot_bert"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "prot_bert"
 
   prot_t5_xl_uniref50:
     method: "sylphy_embedding"
@@ -91,16 +84,16 @@ representations:
     output_name: "prot_t5_xl_uniref50"
     feature_mode: "embeddings"
     metric: "cosine"
-    prefix: "prot_t5_xl_uniref50"
+
   one_hot:
     method: "sylphy_one_hot"
     model_alias: "one_hot"
     output_name: "one_hot"
     feature_mode: "descriptors"
     metric: "euclidean"
-    prefix: "one_hot"
     feature_prefix: "p_"
 
+# Dataset variants that will be partitioned.
 split_sources:
   no_reduced:
     enabled: true
@@ -108,10 +101,10 @@ split_sources:
   reduced_distance:
     enabled: false
     reductions:
-      esm2_t6:
+      esm2_t6_8M_UR50D:
         enabled: false
-        representation_key: "esm2_t6"
-        root: "../../reduced_distance/test/esm2_t6_embedding_distance_reduction"
+        representation_key: "esm2_t6_8M_UR50D"
+        root: "../../reduced_distance/maomao_toxic/esm2_t6_8M_UR50D_embedding_distance_reduction"
         thresholds: "auto"
 
   reduced_homology:
@@ -119,18 +112,19 @@ split_sources:
     reductions:
       homology_mmseqs2_reduction:
         enabled: false
-        root: "../../reduced_homology/test/homology_mmseqs2_reduction"
+        root: "../../reduced_homology/maomao_toxic/homology_mmseqs2_reduction"
         thresholds: "auto"
 
   reduced_descriptor:
     enabled: false
     reductions:
-      onehot_descriptor:
+      one_hot:
         enabled: false
-        representation_key: "onehot"
-        root: "../../reduced_descriptor/test/onehot_descriptor_reduction"
+        representation_key: "one_hot"
+        root: "../../reduced_descriptor/maomao_toxic/one_hot_reduction"
         thresholds: "auto"
 
+# Partitioning methods and their parameters.
 split_strategies:
   biosieve_exec: "biosieve"
 
@@ -153,15 +147,12 @@ split_strategies:
     n_splits: 5
     val_size: 0.1
     shuffle_ties: true
-
-    # Only used when train_representation has feature_mode: descriptors.
-    # It creates distance_aware_kfold_no_norm and distance_aware_kfold_norm.
     descriptor_modes:
-      - no_norm
-        #- norm
+      - "no_norm"
+      # - "norm"
 
+# Representations used by strategies that require numerical features.
 cross_features:
-  enabled: true
   train_representations:
     - "ankh2_ext1"
     - "ankh3_large"
@@ -175,59 +166,38 @@ cross_features:
     - "prot_t5_xl_uniref50"
     - "one_hot"
 
+# Permanent and temporary workflow outputs.
 output:
   root: "../../split_process"
   include_dataset_folder: true
+  materialized_root: "../../split_process_inputs/maomao_toxic"
 
-  # Internal materialized datasets used before splitting.
-  # You can delete this folder and regenerate it.
-  materialized_root: "../../split_process_inputs/cytotoxic"
-
+# Validation applied before and after split generation.
 validation:
   enabled: true
-
-  # Do not crash the workflow when a split is impossible or invalid.
-  # The split is marked as invalid_split in the seed-level split_summary.csv and DONE.txt.
-  fail_on_invalid: false
-
-  # Classification split sanity checks.
   min_classes: 2
   min_classes_per_split: 2
   required_split_files:
     - "train.csv"
     - "val.csv"
     - "test.csv"
-
-  # Remove stale fold_* folders before each split attempt. This prevents old
-  # train/val/test files from making an invalid or skipped split look valid.
   remove_stale_outputs_before_split: true
-
-  # If false, invalid fold_* folders are not kept.
   keep_invalid_fold_files: false
-
-  # If true, invalid threshold/percentile folders are removed entirely.
-  # The invalid run remains traceable only through the seed-level split_summary.csv.
-  # This prevents downstream scripts from accidentally using invalid train/val/test files.
   remove_invalid_run_dirs: true
 
+# Optional summary and plotting stage.
 analysis:
   enabled: false
   script: "../../notebooks_and_scripts/scripts_for_pipelines/split_summary.py"
-
-  # If null, output goes to:
-  # <output.root>/<dataset.name>/split_analysis
   output_dir: null
   summary_dirname: "split_analysis"
-
   plots:
-    enabled: false
     fig_format: "png"
     dpi: 300
     cmap: "split_feasibility"
     annotate: true
     include_no_threshold: true
 
+# Cleanup of temporary materialized inputs after workflow completion.
 cleanup:
-  # Remove the temporary split_process_inputs/<dataset> folder after all splits
-  # and split_analysis tables/figures have been generated.
   remove_materialized_inputs: true

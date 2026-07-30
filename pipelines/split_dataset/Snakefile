@@ -7,6 +7,7 @@ import subprocess
 from datetime import datetime
 import pandas as pd
 import yaml
+import os
 
 
 
@@ -212,29 +213,58 @@ def source_label(source_kind):
     return source_kind
 
 
-def scenario_name(train_rep, source_kind, reduction_rep_key=None):
-    train_name = rep_output_name(train_rep)
+def path_token(value):
+    """Return a filesystem-safe token for scenario directory names."""
+    return str(value).strip().replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+
+def basic_scenario_name(source_kind, reduction_rep_key=None):
+    """Name a representation-independent dataset variant.
+
+    Random and stratified splits depend on the sequence/label universe, not on
+    the numerical representation later used to train a model.
+    """
+    if source_kind == "no_reduced":
+        return "no_reduced"
+
+    if source_kind == "reduced_distance":
+        red_name = rep_output_name(reduction_rep_key)
+        return f"reduced_distance_by_{path_token(red_name)}"
+
+    if source_kind == "reduced_descriptor":
+        red_name = rep_output_name(reduction_rep_key)
+        return f"reduced_descriptor_by_{path_token(red_name)}"
+
+    if source_kind == "reduced_homology":
+        return f"reduced_homology_{path_token(reduction_rep_key)}"
+
+    raise ValueError(f"Unknown source kind: {source_kind}")
+
+
+def distance_scenario_name(train_rep, source_kind, reduction_rep_key=None):
+    """Name a representation-dependent distance-aware scenario."""
+    train_name = path_token(rep_output_name(train_rep))
 
     if source_kind == "no_reduced":
         return f"{train_name}_no_reduced"
 
     if source_kind == "reduced_distance":
-        red_name = rep_output_name(reduction_rep_key)
+        red_name = path_token(rep_output_name(reduction_rep_key))
         if train_name == red_name:
             return f"{train_name}_reduced_distance"
         return f"{train_name}_reduced_distance_by_{red_name}"
 
     if source_kind == "reduced_descriptor":
-        red_name = rep_output_name(reduction_rep_key)
+        red_name = path_token(rep_output_name(reduction_rep_key))
         if train_name == red_name:
             return f"{train_name}_reduced_descriptor"
         return f"{train_name}_reduced_descriptor_by_{red_name}"
 
     if source_kind == "reduced_homology":
-        return f"{train_name}_reduced_homology"
+        reduction_name = path_token(reduction_rep_key)
+        return f"{train_name}_reduced_homology_{reduction_name}"
 
     raise ValueError(f"Unknown source kind: {source_kind}")
-
 
 def materialized_full_data_path(scenario, threshold=""):
     if threshold:
@@ -299,7 +329,8 @@ def descriptor_standardize(strategy_dir):
     return strategy_dir.endswith("_norm")
 
 
-def active_strategy_dirs_for_rep(train_rep):
+def basic_strategy_dirs():
+    """Strategies that do not depend on a numerical representation."""
     strategy_dirs = []
 
     random_cfg = STRATEGIES_CFG.get("random_kfold", {})
@@ -310,22 +341,34 @@ def active_strategy_dirs_for_rep(train_rep):
     if enabled(strat_cfg):
         strategy_dirs.append(strat_cfg.get("output_name", "stratified_kfold"))
 
-    dist_cfg = STRATEGIES_CFG.get("distance_aware_kfold", {})
-    if enabled(dist_cfg):
-        if rep_feature_mode(train_rep) == "descriptors":
-            modes = dist_cfg.get("descriptor_modes", ["no_norm"])
-            for mode in modes:
-                if mode == "norm":
-                    strategy_dirs.append("distance_aware_kfold_norm")
-                elif mode == "no_norm":
-                    strategy_dirs.append("distance_aware_kfold_no_norm")
-                else:
-                    raise ValueError(f"Unknown descriptor distance-aware mode: {mode}")
-        else:
-            strategy_dirs.append(dist_cfg.get("output_name", "distance_aware_kfold"))
-
     return strategy_dirs
 
+
+def distance_strategy_dirs_for_rep(train_rep):
+    """Distance-aware strategy directories for one numerical representation."""
+    strategy_dirs = []
+    dist_cfg = STRATEGIES_CFG.get("distance_aware_kfold", {})
+
+    if not enabled(dist_cfg):
+        return strategy_dirs
+
+    if rep_feature_mode(train_rep) == "descriptors":
+        modes = dist_cfg.get("descriptor_modes", ["no_norm"])
+        for mode in modes:
+            if mode == "norm":
+                strategy_dirs.append("distance_aware_kfold_norm")
+            elif mode == "no_norm":
+                strategy_dirs.append("distance_aware_kfold_no_norm")
+            else:
+                raise ValueError(
+                    f"Unknown descriptor distance-aware mode: {mode}"
+                )
+    else:
+        strategy_dirs.append(
+            dist_cfg.get("output_name", "distance_aware_kfold")
+        )
+
+    return strategy_dirs
 
 # ============================================================
 # Build scenario table
@@ -343,45 +386,150 @@ def add_split_attempt_target(scenario, strategy_dir, seed, threshold=""):
     row_path = split_status_row_path(scenario, strategy_dir, seed, threshold)
     key = (scenario, strategy_dir, seed)
     SEED_STATUS_ROWS.setdefault(key, []).append(row_path)
-    SEED_SUMMARY_TARGETS.add(seed_split_summary_path(scenario, strategy_dir, seed))
+    SEED_SUMMARY_TARGETS.add(
+        seed_split_summary_path(scenario, strategy_dir, seed)
+    )
 
 
-def add_scenario(
+def register_scenario(meta, strategy_dirs):
+    """Register one dataset scenario and the strategies that apply to it."""
+    scenario = meta["scenario"]
+    threshold = meta.get("threshold", "")
+    key = (scenario, threshold)
+
+    if key in SCENARIOS:
+        existing = SCENARIOS[key]
+        comparable_fields = [
+            "scenario_type",
+            "source_kind",
+            "source_file",
+            "reduction_rep_key",
+            "train_rep",
+        ]
+        differences = {
+            field: (existing.get(field, ""), meta.get(field, ""))
+            for field in comparable_fields
+            if existing.get(field, "") != meta.get(field, "")
+        }
+        if differences:
+            raise ValueError(
+                f"Scenario collision for key={key}. Differences={differences}"
+            )
+    else:
+        SCENARIOS[key] = meta
+
+    for strategy_dir in strategy_dirs:
+        for seed in SEEDS:
+            add_split_attempt_target(
+                scenario=scenario,
+                strategy_dir=strategy_dir,
+                seed=seed,
+                threshold=threshold,
+            )
+
+
+def add_basic_scenario(
+    source_kind,
+    source_file,
+    threshold="",
+    reduction_rep_key=None,
+):
+    """Register random/stratified splits once per dataset variant."""
+    strategies = basic_strategy_dirs()
+    if not strategies:
+        return
+
+    scenario = basic_scenario_name(
+        source_kind=source_kind,
+        reduction_rep_key=reduction_rep_key,
+    )
+
+    register_scenario(
+        meta={
+            "scenario": scenario,
+            "scenario_type": "basic",
+            "threshold": threshold,
+            "train_rep": "",
+            "source_kind": source_kind,
+            "source_file": str(source_file),
+            "reduction_rep_key": reduction_rep_key or "",
+            "materialized": materialized_full_data_path(
+                scenario,
+                threshold,
+            ),
+        },
+        strategy_dirs=strategies,
+    )
+
+
+def add_distance_scenario(
     train_rep,
     source_kind,
     source_file,
     threshold="",
     reduction_rep_key=None,
 ):
-    scenario = scenario_name(train_rep, source_kind, reduction_rep_key)
+    """Register distance-aware splits once per distance representation."""
+    strategies = distance_strategy_dirs_for_rep(train_rep)
+    if not strategies:
+        return
 
-    key = (scenario, threshold)
-    if key not in SCENARIOS:
-        SCENARIOS[key] = {
+    scenario = distance_scenario_name(
+        train_rep=train_rep,
+        source_kind=source_kind,
+        reduction_rep_key=reduction_rep_key,
+    )
+
+    register_scenario(
+        meta={
             "scenario": scenario,
+            "scenario_type": "distance",
             "threshold": threshold,
             "train_rep": train_rep,
             "source_kind": source_kind,
-            "source_file": source_file,
+            "source_file": str(source_file),
             "reduction_rep_key": reduction_rep_key or "",
-            "materialized": materialized_full_data_path(scenario, threshold),
-        }
+            "materialized": materialized_full_data_path(
+                scenario,
+                threshold,
+            ),
+        },
+        strategy_dirs=strategies,
+    )
 
-    for strategy_dir in active_strategy_dirs_for_rep(train_rep):
-        for seed in SEEDS:
-            add_split_attempt_target(scenario, strategy_dir, seed, threshold)
+
+def add_dataset_variant(
+    source_kind,
+    source_file,
+    threshold="",
+    reduction_rep_key=None,
+):
+    """Register both representation-independent and distance-aware splits."""
+    add_basic_scenario(
+        source_kind=source_kind,
+        source_file=source_file,
+        threshold=threshold,
+        reduction_rep_key=reduction_rep_key,
+    )
+
+    for train_rep in TRAIN_REPS:
+        add_distance_scenario(
+            train_rep=train_rep,
+            source_kind=source_kind,
+            source_file=source_file,
+            threshold=threshold,
+            reduction_rep_key=reduction_rep_key,
+        )
 
 
 # ----- no reduction -----
 if enabled(SOURCES_CFG.get("no_reduced", {})):
-    for train_rep in TRAIN_REPS:
-        add_scenario(
-            train_rep=train_rep,
-            source_kind="no_reduced",
-            source_file=str(INPUT_DATA),
-            threshold="",
-            reduction_rep_key=None,
-        )
+    add_dataset_variant(
+        source_kind="no_reduced",
+        source_file=str(INPUT_DATA),
+        threshold="",
+        reduction_rep_key=None,
+    )
 
 
 # ----- distance-reduced datasets -----
@@ -393,23 +541,30 @@ if enabled(rd_cfg):
 
         root = red_cfg.get(
             "root",
-            REDUCTION_ROOT / "reduced_distance" / DATASET_NAME / f"{red_key}_embedding_distance_reduction"
+            REDUCTION_ROOT
+            / "reduced_distance"
+            / DATASET_NAME
+            / f"{red_key}_embedding_distance_reduction",
         )
         root = path_from_config(root)
-        thresholds = list_threshold_dirs(root, red_cfg.get("thresholds", "auto"))
-
+        thresholds = list_threshold_dirs(
+            root,
+            red_cfg.get("thresholds", "auto"),
+        )
         reduction_rep_key = red_cfg.get("representation_key", red_key)
 
         for threshold in thresholds:
-            src = reduced_file_for(root, threshold, "reduced_distance")
-            for train_rep in TRAIN_REPS:
-                add_scenario(
-                    train_rep=train_rep,
-                    source_kind="reduced_distance",
-                    source_file=src,
-                    threshold=threshold,
-                    reduction_rep_key=reduction_rep_key,
-                )
+            src = reduced_file_for(
+                root,
+                threshold,
+                "reduced_distance",
+            )
+            add_dataset_variant(
+                source_kind="reduced_distance",
+                source_file=src,
+                threshold=threshold,
+                reduction_rep_key=reduction_rep_key,
+            )
 
 
 # ----- descriptor-reduced datasets -----
@@ -421,22 +576,30 @@ if enabled(rdesc_cfg):
 
         root = red_cfg.get(
             "root",
-            REDUCTION_ROOT / "reduced_descriptor" / DATASET_NAME / f"{red_key}_reduction"
+            REDUCTION_ROOT
+            / "reduced_descriptor"
+            / DATASET_NAME
+            / f"{red_key}_reduction",
         )
         root = path_from_config(root)
-        thresholds = list_threshold_dirs(root, red_cfg.get("thresholds", "auto"))
+        thresholds = list_threshold_dirs(
+            root,
+            red_cfg.get("thresholds", "auto"),
+        )
         reduction_rep_key = red_cfg.get("representation_key", red_key)
 
         for threshold in thresholds:
-            src = reduced_file_for(root, threshold, "reduced_descriptor")
-            for train_rep in TRAIN_REPS:
-                add_scenario(
-                    train_rep=train_rep,
-                    source_kind="reduced_descriptor",
-                    source_file=src,
-                    threshold=threshold,
-                    reduction_rep_key=reduction_rep_key,
-                )
+            src = reduced_file_for(
+                root,
+                threshold,
+                "reduced_descriptor",
+            )
+            add_dataset_variant(
+                source_kind="reduced_descriptor",
+                source_file=src,
+                threshold=threshold,
+                reduction_rep_key=reduction_rep_key,
+            )
 
 
 # ----- homology-reduced datasets -----
@@ -448,22 +611,29 @@ if enabled(rh_cfg):
 
         root = red_cfg.get(
             "root",
-            REDUCTION_ROOT / "reduced_homology" / DATASET_NAME / red_key
+            REDUCTION_ROOT
+            / "reduced_homology"
+            / DATASET_NAME
+            / red_key,
         )
         root = path_from_config(root)
-        thresholds = list_threshold_dirs(root, red_cfg.get("thresholds", "auto"))
+        thresholds = list_threshold_dirs(
+            root,
+            red_cfg.get("thresholds", "auto"),
+        )
 
         for threshold in thresholds:
-            src = reduced_file_for(root, threshold, "reduced_homology")
-            for train_rep in TRAIN_REPS:
-                add_scenario(
-                    train_rep=train_rep,
-                    source_kind="reduced_homology",
-                    source_file=src,
-                    threshold=threshold,
-                    reduction_rep_key=red_key,
-                )
-
+            src = reduced_file_for(
+                root,
+                threshold,
+                "reduced_homology",
+            )
+            add_dataset_variant(
+                source_kind="reduced_homology",
+                source_file=src,
+                threshold=threshold,
+                reduction_rep_key=red_key,
+            )
 
 if not SEED_SUMMARY_TARGETS:
     raise ValueError("No split targets were generated. Check enabled flags in config.yaml.")
@@ -574,56 +744,182 @@ rule cleanup_materialized_inputs:
 # Materialize split inputs
 # ============================================================
 
+
+def representation_input_for_scenario(scenario, threshold=""):
+    """Return a stable dependency for scenario materialization.
+
+    Basic scenarios return their source file again because Snakemake input
+    functions should resolve to a concrete path. Distance scenarios return the
+    numerical representation that is actually required.
+    """
+    meta = SCENARIOS[(scenario, threshold)]
+    if meta.get("scenario_type") == "distance":
+        return rep_full_data(meta["train_rep"])
+    return meta["source_file"]
+
+
 rule materialize_no_threshold:
     input:
         source=lambda wc: SCENARIOS[(wc.scenario, "")]["source_file"],
-        train_full=lambda wc: rep_full_data(SCENARIOS[(wc.scenario, "")]["train_rep"])
+        representation=lambda wc: representation_input_for_scenario(
+            wc.scenario,
+            "",
+        )
     output:
         full_data=str(MATERIALIZED_ROOT / "{scenario}" / "full_data.csv"),
         metadata=str(MATERIALIZED_ROOT / "{scenario}" / "metadata.json")
     run:
+        meta = SCENARIOS[(wildcards.scenario, "")]
+        train_full_path = (
+            str(input.representation)
+            if meta.get("scenario_type") == "distance"
+            else None
+        )
         materialize_dataset(
             source_path=input.source,
-            train_full_path=input.train_full,
+            train_full_path=train_full_path,
             output_path=output.full_data,
             metadata_path=output.metadata,
-            meta=SCENARIOS[(wildcards.scenario, "")]
+            meta=meta,
         )
 
 
 rule materialize_with_threshold:
     input:
         source=lambda wc: SCENARIOS[(wc.scenario, wc.threshold)]["source_file"],
-        train_full=lambda wc: rep_full_data(SCENARIOS[(wc.scenario, wc.threshold)]["train_rep"])
+        representation=lambda wc: representation_input_for_scenario(
+            wc.scenario,
+            wc.threshold,
+        )
     output:
-        full_data=str(MATERIALIZED_ROOT / "{scenario}" / "{threshold}" / "full_data.csv"),
-        metadata=str(MATERIALIZED_ROOT / "{scenario}" / "{threshold}" / "metadata.json")
+        full_data=str(
+            MATERIALIZED_ROOT
+            / "{scenario}"
+            / "{threshold}"
+            / "full_data.csv"
+        ),
+        metadata=str(
+            MATERIALIZED_ROOT
+            / "{scenario}"
+            / "{threshold}"
+            / "metadata.json"
+        )
     run:
+        meta = SCENARIOS[(wildcards.scenario, wildcards.threshold)]
+        train_full_path = (
+            str(input.representation)
+            if meta.get("scenario_type") == "distance"
+            else None
+        )
         materialize_dataset(
             source_path=input.source,
-            train_full_path=input.train_full,
+            train_full_path=train_full_path,
             output_path=output.full_data,
             metadata_path=output.metadata,
-            meta=SCENARIOS[(wildcards.scenario, wildcards.threshold)]
+            meta=meta,
         )
 
 
-def materialize_dataset(
+def validate_source_id_labels(src, source_path):
+    """Validate the identifier/label universe used by every split strategy."""
+    required = [ID_COL, LABEL_COL]
+    missing = [column for column in required if column not in src.columns]
+    if missing:
+        raise ValueError(
+            f"Source dataset is missing required columns: {missing}. "
+            f"source={source_path}, columns={src.columns.tolist()}"
+        )
+
+    null_id_count = int(src[ID_COL].isna().sum())
+    null_label_count = int(src[LABEL_COL].isna().sum())
+    if null_id_count or null_label_count:
+        raise ValueError(
+            f"Source dataset contains null identifiers or labels. "
+            f"null_{ID_COL}={null_id_count}, "
+            f"null_{LABEL_COL}={null_label_count}, "
+            f"source={source_path}"
+        )
+
+    label_conflicts = (
+        src.groupby(ID_COL, dropna=False)[LABEL_COL]
+        .nunique(dropna=False)
+    )
+    conflicting_ids = label_conflicts[label_conflicts > 1]
+    if not conflicting_ids.empty:
+        examples = conflicting_ids.index.astype(str).tolist()[:10]
+        raise ValueError(
+            f"The source dataset has {len(conflicting_ids)} identifiers "
+            f"with conflicting labels. Examples={examples}. "
+            f"source={source_path}"
+        )
+
+
+def materialize_basic_dataset(source_path, output_path, metadata_path, meta):
+    """Materialize only ID and label for random/stratified splitting."""
+    source_path = Path(str(source_path))
+    output_path = Path(str(output_path))
+    metadata_path = Path(str(metadata_path))
+
+    src = pd.read_csv(source_path)
+    validate_source_id_labels(src, source_path)
+
+    out = (
+        src[[ID_COL, LABEL_COL]]
+        .drop_duplicates(subset=[ID_COL], keep="first")
+        .reset_index(drop=True)
+    )
+
+    if out.empty:
+        raise ValueError(
+            f"Basic materialized dataset has 0 rows: {source_path}"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(output_path, index=False)
+
+    metadata = dict(meta)
+    metadata.update(
+        {
+            "source_path": str(source_path),
+            "train_full_path": "",
+            "output_path": str(output_path),
+            "join_columns": [],
+            "materialization_mode": "id_label_only",
+            "n_source_rows": int(src.shape[0]),
+            "n_representation_rows": 0,
+            "n_rows": int(out.shape[0]),
+            "n_columns": int(out.shape[1]),
+            "columns": out.columns.tolist(),
+            "label_distribution": {
+                str(label): int(count)
+                for label, count in (
+                    out[LABEL_COL]
+                    .value_counts()
+                    .sort_index()
+                    .items()
+                )
+            },
+        }
+    )
+
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2),
+        encoding="utf-8",
+    )
+
+
+def materialize_distance_dataset(
     source_path,
     train_full_path,
     output_path,
     metadata_path,
     meta,
 ):
+    """Merge labels with one representation for distance-aware splitting."""
     source_path = Path(str(source_path))
     train_full_path = Path(str(train_full_path))
     output_path = Path(str(output_path))
     metadata_path = Path(str(metadata_path))
-
-    if not source_path.exists():
-        raise FileNotFoundError(
-            f"Source dataset not found: {source_path}"
-        )
 
     if not train_full_path.exists():
         raise FileNotFoundError(
@@ -631,7 +927,6 @@ def materialize_dataset(
             f"{train_full_path}"
         )
 
-    # source_path debe ser sequences.csv, no full_data.csv
     if source_path.resolve() == train_full_path.resolve():
         raise ValueError(
             "source_path and train_full_path point to the same file. "
@@ -639,57 +934,34 @@ def materialize_dataset(
             "containing the label column."
         )
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
     src = pd.read_csv(source_path)
     feat = pd.read_csv(train_full_path)
 
-    required_source = [
-        ID_COL,
-        SEQUENCE_COL,
-        LABEL_COL,
-    ]
-
+    required_source = [ID_COL, SEQUENCE_COL, LABEL_COL]
     missing_source = [
         column
         for column in required_source
         if column not in src.columns
     ]
-
     if missing_source:
         raise ValueError(
             "Source dataset is missing required columns: "
-            f"{missing_source}. "
-            f"Columns: {src.columns.tolist()}"
+            f"{missing_source}. Columns: {src.columns.tolist()}"
         )
 
-    # Evitar duplicados antes del merge
+    validate_source_id_labels(src, source_path)
+
     src = (
-        src[
-            [
-                ID_COL,
-                SEQUENCE_COL,
-                LABEL_COL,
-            ]
-        ]
-        .drop_duplicates(
-            subset=[ID_COL],
-            keep="first",
-        )
+        src[[ID_COL, SEQUENCE_COL, LABEL_COL]]
+        .drop_duplicates(subset=[ID_COL], keep="first")
         .copy()
     )
-
     src["_order"] = range(len(src))
 
-    # Eliminar label de la representación si ya existiera,
-    # porque la etiqueta correcta viene de sequences.csv
+    # The endpoint-specific label is authoritative.
     if LABEL_COL in feat.columns:
         feat = feat.drop(columns=[LABEL_COL])
 
-    # Preferir el ID como clave de unión
     if ID_COL in feat.columns:
         join_cols = [ID_COL]
     elif SEQUENCE_COL in feat.columns:
@@ -713,68 +985,45 @@ def materialize_dataset(
         raise ValueError(
             "Merge produced 0 rows using "
             f"join columns {join_cols}. "
-            f"source={source_path}, "
-            f"train_full={train_full_path}"
+            f"source={source_path}, train_full={train_full_path}"
         )
 
-    # Recuperar sequence desde el archivo fuente
-    # cuando el merge se hizo solamente mediante id
     source_sequence = f"{SEQUENCE_COL}_source"
-
     if source_sequence in out.columns:
         if SEQUENCE_COL in out.columns:
-            out[SEQUENCE_COL] = (
-                out[source_sequence]
-                .combine_first(out[SEQUENCE_COL])
+            out[SEQUENCE_COL] = out[source_sequence].combine_first(
+                out[SEQUENCE_COL]
             )
         else:
             out[SEQUENCE_COL] = out[source_sequence]
-
         out = out.drop(columns=[source_sequence])
 
-    out = (
-        out
-        .sort_values("_order")
-        .drop(columns=["_order"])
-    )
+    out = out.sort_values("_order").drop(columns=["_order"])
+    out = out.loc[:, ~out.columns.duplicated()]
 
-    out = out.loc[
-        :,
-        ~out.columns.duplicated(),
-    ]
-
-    required_output = [
-        ID_COL,
-        SEQUENCE_COL,
-        LABEL_COL,
-    ]
-
+    required_output = [ID_COL, SEQUENCE_COL, LABEL_COL]
     missing_output = [
         column
         for column in required_output
         if column not in out.columns
     ]
-
     if missing_output:
         raise ValueError(
             "Materialized dataset is missing required columns: "
-            f"{missing_output}. "
-            f"Columns: {out.columns.tolist()}"
+            f"{missing_output}. Columns: {out.columns.tolist()}"
         )
 
-    out.to_csv(
-        output_path,
-        index=False,
-    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(output_path, index=False)
 
     metadata = dict(meta)
-
     metadata.update(
         {
             "source_path": str(source_path),
             "train_full_path": str(train_full_path),
             "output_path": str(output_path),
             "join_columns": join_cols,
+            "materialization_mode": "representation_merge",
             "n_source_rows": int(src.shape[0]),
             "n_representation_rows": int(feat.shape[0]),
             "n_rows": int(out.shape[0]),
@@ -792,13 +1041,55 @@ def materialize_dataset(
     )
 
     metadata_path.write_text(
-        json.dumps(
-            metadata,
-            indent=2,
-        ),
+        json.dumps(metadata, indent=2),
         encoding="utf-8",
     )
 
+
+def materialize_dataset(
+    source_path,
+    train_full_path,
+    output_path,
+    metadata_path,
+    meta,
+):
+    """Dispatch to basic or representation-dependent materialization."""
+    source_path = Path(str(source_path))
+    if not source_path.exists():
+        raise FileNotFoundError(
+            f"Source dataset not found: {source_path}"
+        )
+
+    scenario_type = meta.get("scenario_type")
+
+    if scenario_type == "basic":
+        materialize_basic_dataset(
+            source_path=source_path,
+            output_path=output_path,
+            metadata_path=metadata_path,
+            meta=meta,
+        )
+        return
+
+    if scenario_type == "distance":
+        if train_full_path in [None, "", "null"]:
+            raise ValueError(
+                f"Distance scenario '{meta.get('scenario')}' has no "
+                "representation input."
+            )
+        materialize_distance_dataset(
+            source_path=source_path,
+            train_full_path=train_full_path,
+            output_path=output_path,
+            metadata_path=metadata_path,
+            meta=meta,
+        )
+        return
+
+    raise ValueError(
+        f"Unknown scenario_type={scenario_type!r} for "
+        f"scenario={meta.get('scenario')!r}"
+    )
 
 # ============================================================
 # Distance arrays
@@ -938,7 +1229,6 @@ def write_params_yaml(output_yaml, strategy_dir, seed, scenario, threshold="", e
 
     actual_strategy = biosieve_strategy(strategy_dir)
     meta = SCENARIOS[(scenario, threshold)]
-    train_rep = meta["train_rep"]
 
     if actual_strategy == "random_kfold":
         cfg = {
@@ -965,6 +1255,18 @@ def write_params_yaml(output_yaml, strategy_dir, seed, scenario, threshold="", e
         }
 
     elif actual_strategy == "distance_aware_kfold":
+        if meta.get("scenario_type") != "distance":
+            raise ValueError(
+                f"Distance-aware strategy received non-distance scenario: "
+                f"{scenario}"
+            )
+
+        train_rep = meta.get("train_rep")
+        if not train_rep:
+            raise ValueError(
+                f"Distance-aware scenario '{scenario}' has no train_rep."
+            )
+
         dt = STRATEGIES_CFG["distance_aware_kfold"]
         feature_mode = rep_feature_mode(train_rep)
 
@@ -1218,6 +1520,161 @@ def validate_split_outputs(outdir):
     return True, ""
 
 
+def compact_split_outputs(outdir):
+    """
+    Replace train.csv, val.csv and test.csv with compact versions
+    containing only ID_COL and LABEL_COL.
+
+    The replacement is atomic:
+    1. Write a temporary CSV next to the original file.
+    2. Validate the temporary CSV.
+    3. Replace the original full CSV using os.replace().
+    """
+    outdir = Path(str(outdir))
+
+    fold_dirs = sorted(
+        path
+        for path in outdir.glob("fold_*")
+        if path.is_dir()
+    )
+
+    if not fold_dirs:
+        raise ValueError(
+            f"No fold_* directories found in {outdir}"
+        )
+
+    required_files = VALIDATION_CFG.get(
+        "required_split_files",
+        ["train.csv", "val.csv", "test.csv"],
+    )
+
+    permanent_columns = [ID_COL, LABEL_COL]
+
+    total_before = 0
+    total_after = 0
+    processed_files = 0
+
+    for fold_dir in fold_dirs:
+        for filename in required_files:
+            split_path = fold_dir / filename
+
+            if not split_path.exists():
+                raise FileNotFoundError(
+                    f"Split file not found during compaction: "
+                    f"{split_path}"
+                )
+
+            # Revisar primero el encabezado sin cargar el archivo completo.
+            header = pd.read_csv(
+                split_path,
+                nrows=0,
+            ).columns.tolist()
+
+            missing_columns = [
+                column
+                for column in permanent_columns
+                if column not in header
+            ]
+
+            if missing_columns:
+                raise ValueError(
+                    f"{split_path} is missing columns required for "
+                    f"the compact split: {missing_columns}. "
+                    f"Columns found: {header}"
+                )
+
+            original_size = split_path.stat().st_size
+
+            # Pandas solamente carga las dos columnas necesarias,
+            # no todos los embeddings.
+            compact_df = pd.read_csv(
+                split_path,
+                usecols=permanent_columns,
+            )
+
+            # Garantizar el orden sequence_id,label.
+            compact_df = compact_df.loc[
+                :,
+                permanent_columns,
+            ]
+
+            if compact_df.empty:
+                raise ValueError(
+                    f"Compact split would be empty: {split_path}"
+                )
+
+            if compact_df[ID_COL].isna().any():
+                raise ValueError(
+                    f"Null values found in '{ID_COL}': {split_path}"
+                )
+
+            if compact_df[LABEL_COL].isna().any():
+                raise ValueError(
+                    f"Null values found in '{LABEL_COL}': {split_path}"
+                )
+
+            # Archivo temporal en el mismo sistema de archivos.
+            temporary_path = split_path.with_name(
+                f".{split_path.name}.compact.tmp"
+            )
+
+            try:
+                compact_df.to_csv(
+                    temporary_path,
+                    index=False,
+                )
+
+                # Validar el temporal antes de reemplazar el original.
+                compact_check = pd.read_csv(temporary_path)
+
+                if compact_check.columns.tolist() != permanent_columns:
+                    raise ValueError(
+                        f"Unexpected compact columns for {split_path}. "
+                        f"Expected={permanent_columns}, "
+                        f"found={compact_check.columns.tolist()}"
+                    )
+
+                if compact_check.shape[0] != compact_df.shape[0]:
+                    raise ValueError(
+                        f"Row count changed while compacting {split_path}. "
+                        f"Expected={compact_df.shape[0]}, "
+                        f"found={compact_check.shape[0]}"
+                    )
+
+                # Reemplazo atómico: desaparece el CSV grande y queda
+                # el CSV compacto utilizando el mismo nombre.
+                os.replace(
+                    temporary_path,
+                    split_path,
+                )
+
+            finally:
+                # Solo quedaría si ocurrió un error antes de os.replace().
+                if temporary_path.exists():
+                    temporary_path.unlink()
+
+            compact_size = split_path.stat().st_size
+
+            total_before += original_size
+            total_after += compact_size
+            processed_files += 1
+
+            print(
+                f"[COMPACT] {split_path}: "
+                f"{original_size / (1024 ** 2):.2f} MiB -> "
+                f"{compact_size / (1024 ** 2):.2f} MiB"
+            )
+
+    saved_bytes = total_before - total_after
+
+    print(
+        f"[COMPACT] Processed {processed_files} split files. "
+        f"Before={total_before / (1024 ** 3):.3f} GiB, "
+        f"after={total_after / (1024 ** 3):.3f} GiB, "
+        f"saved={saved_bytes / (1024 ** 3):.3f} GiB"
+    )
+
+
 def remove_split_artifacts(outdir, remove_logs=False):
     """Remove generated split files without deleting params_split.yaml or summaries.
 
@@ -1355,6 +1812,20 @@ def run_biosieve_split_safely(full_data, params_yaml, outdir, strategy_dir, seed
         return
 
     valid, reason = validate_split_outputs(outdir)
+
+    if valid:
+        try:
+            # Biosieve ya terminó de utilizar las columnas numéricas.
+            # Reemplazar los CSV completos por archivos ID + label.
+            compact_split_outputs(outdir)
+
+        except Exception as exc:
+            valid = False
+            reason = (
+                "Split was generated correctly, but compacting "
+                f"train/val/test failed: {exc}"
+            )
+
     if valid:
         write_split_status(
             status_path=status_path,
@@ -1367,8 +1838,13 @@ def run_biosieve_split_safely(full_data, params_yaml, outdir, strategy_dir, seed
             full_data=full_data,
             outdir=outdir,
         )
+
         if done_path is not None:
-            done_path.write_text("kept\n", encoding="utf-8")
+            done_path.write_text(
+                "kept\n",
+                encoding="utf-8",
+            )
+
     else:
         write_split_status(
             status_path=status_path,
@@ -1381,12 +1857,29 @@ def run_biosieve_split_safely(full_data, params_yaml, outdir, strategy_dir, seed
             full_data=full_data,
             outdir=outdir,
         )
-        handle_invalid_generated_split(outdir, threshold=threshold)
+
+        handle_invalid_generated_split(
+            outdir,
+            threshold=threshold,
+        )
+
         if not threshold:
-            (outdir / "INVALID_SPLIT.txt").write_text(clean_split_reason(reason) + "\n", encoding="utf-8")
+            (outdir / "INVALID_SPLIT.txt").write_text(
+                clean_split_reason(reason) + "\n",
+                encoding="utf-8",
+            )
+
             if done_path is not None:
-                done_path.write_text("invalid_split\n", encoding="utf-8")
-        print(f"[WARNING] Split created but marked invalid. Invalid run folder was removed when thresholded. See {status_path}")
+                done_path.write_text(
+                    "invalid_split\n",
+                    encoding="utf-8",
+                )
+
+        print(
+            "[WARNING] Split created but marked invalid. "
+            "Invalid run folder was removed when thresholded. "
+            f"See {status_path}"
+        )
 
 
 rule create_basic_splits_no_threshold:
