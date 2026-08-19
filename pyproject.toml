@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "maomao"
-version = "0.0.1"
+version = "0.1.0"
 description = "Python workflows for constructing MAOMAO, an ontology-guided FAIR resource for harmonized peptide toxicity data."
 readme = "README.md"
-requires-python = ">=3.10,<4.0"
-license = { file = "LICENSE.txt" }
+requires-python = ">=3.11,<3.13"
+license = { file = "LICENSE" }
 
 authors = [
     { name = "Kren AI Lab", email = "krenai@umag.cl" }
@@ -40,13 +40,15 @@ dependencies = [
     "biopython==1.82",
     "python-dotenv",
     "pyyaml",
-    "typer",
-    "sylphy[all]",
-    "biosieve @ git+https://github.com/kren-ai-lab/biosieve.git@main",
+    "packaging==25.0",
+    "typer==0.24.1",
+    "click==8.3.2",
+    "sylphy[all]==0.2.0",
+    "biosieve==0.1.0",
+    "roxy @ git+https://github.com/kren-ai-lab/roxy.git@347c493af3ac49496a7a421462508ebe8c12d7d1",
     "openpyxl",
     "seaborn"
 ]
-
 
 
 [project.urls]
@@ -57,4 +59,7 @@ Repository = "https://github.com/kren-ai-lab/maomao"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/maomao"]
+packages = [
+    "src/maomao",
+    "src/building_models",
+]

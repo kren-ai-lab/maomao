@@ -1,9 +1,9 @@
 # MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data
 
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![Snakemake](https://img.shields.io/badge/Snakemake-9.x-green.svg)](https://snakemake.github.io/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.txt)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21584414.svg)](https://doi.org/10.5281/zenodo.21584414)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21584414-blue?style=flat-square)](https://doi.org/10.5281/zenodo.21584414)
 
 Nicole Soto-García<sup>1</sup>, Roberto Uribe-Paredes<sup>1</sup>, Leandro Murgas-Saavedra<sup>1</sup>, Karen Oróstica<sup>2</sup>, Jorge González-Puelma<sup>3,4</sup>, Marcelo Navarrete<sup>3,4</sup>, Frederic Cadet<sup>5</sup>, and David Medina-Ortiz<sup>1,*</sup>.<br>
 
@@ -31,6 +31,9 @@ MAOMAO is a **data resource and resource-construction framework**. It is not pre
 - [Ontology and evidence model](#ontology-and-evidence-model)
 - [Main resource outputs](#main-resource-outputs)
 - [Repository structure](#repository-structure)
+- [Data availability](#data-availability)
+  - [Restoring the project data structure](#restoring-the-project-data-structure)
+  - [Directory description](#directory-description)
 - [Software requirements](#software-requirements)
 - [Installation](#installation)
 - [Reconstructing MAOMAO](#reconstructing-maomao)
@@ -40,7 +43,6 @@ MAOMAO is a **data resource and resource-construction framework**. It is not pre
   - [Dataset splitting](#3-dataset-splitting)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
-- [Output structure](#output-structure)
 - [Reproducibility and traceability](#reproducibility-and-traceability)
 - [Citation](#citation)
 - [License](#license)
@@ -189,7 +191,7 @@ The GitHub repository contains the source code, reproducible notebooks, configur
 │   ├── maomao/
 │   └── building_models/
 │
-├── LICENSE.txt
+├── LICENSE
 ├── pyproject.toml
 └── README.md
 ```
@@ -200,7 +202,7 @@ The GitHub repository contains the source code, notebooks, configuration files, 
 
 The complete MAOMAO data release and associated computational artefacts are distributed through a single Zenodo record:
 
-- **MAOMAO data release:** Zenodo DOI and link pending.
+- **MAOMAO data release (version 0.1.0):** [https://doi.org/10.5281/zenodo.21584414](https://doi.org/10.5281/zenodo.21584414)
 
 The archived release includes the harmonized peptide toxicity resource, source- and resource-level metadata, provenance records, audit tables, numerical sequence representations, and reproducible endpoint-specific dataset partitions.
 
@@ -234,6 +236,111 @@ maomao/
     └── maomao_<endpoint>/
 ```
 
+## Restoring the project data structure
+
+The directories named `core_layer`, `embedding_layer`, `descriptor_layer`, `benchmark_layer`, and `documentation_layer` organize the Zenodo release according to the conceptual resource layers described in the article. These directories are distribution containers and do not correspond directly to the operational directory structure required by the repository workflows.
+
+The following instructions restore the Core Layer contents to their expected locations within the cloned MAOMAO repository.
+
+### 1. Verify the working directory
+
+Run the following commands from the root of the cloned `maomao` repository:
+
+```bash
+test -f pyproject.toml
+test -d pipelines
+```
+
+If either command fails, navigate to the repository root before continuing.
+
+### 2. Download the Core Layer
+
+Create a temporary directory for the downloaded MAOMAO release:
+
+```bash
+mkdir -p downloads/maomao_release
+```
+
+Download `core_layer.zip` from Zenodo:
+
+```bash
+curl -fL \
+  "https://zenodo.org/api/records/21584414/files/core_layer.zip/content" \
+  -o downloads/core_layer.zip
+```
+
+### 3. Extract the Core Layer
+
+Extract the downloaded archive into the temporary release directory:
+
+```bash
+unzip downloads/core_layer.zip -d downloads/maomao_release
+```
+
+After extraction, the files will have the following intermediate structure:
+
+```text
+downloads/
+├── core_layer.zip
+└── maomao_release/
+    └── core_layer/
+        ├── raw_data/
+        └── processed_data/
+```
+
+This is the Zenodo distribution structure. The files must still be copied into the operational repository directories.
+
+### 4. Restore the operational directories
+
+Create the directories expected by the repository:
+
+```bash
+mkdir -p raw_data processed_data
+```
+
+Copy the Core Layer contents to their corresponding operational locations:
+
+```bash
+cp -R downloads/maomao_release/core_layer/raw_data/. raw_data/
+cp -R downloads/maomao_release/core_layer/processed_data/. processed_data/
+```
+
+The trailing `/.` copies the contents of each directory without retaining `core_layer` as an additional directory level.
+
+### 5. Verify the restored data
+
+Confirm that the principal sequence-level resource is available at the location expected by the numerical-representation workflow:
+
+```bash
+test -f processed_data/processed_data/maomao_sequence_pivot.csv
+```
+
+The restored Core Layer should produce the following operational structure:
+
+```text
+maomao/
+├── raw_data/
+│   └── <source>/
+│
+├── processed_data/
+│   ├── toxic_effect_classification/
+│   │   └── <source>/
+│   ├── integrating_and_cleaning_data/
+│   │   └── <endpoint>/
+│   └── processed_data/
+│       ├── maomao_sequence_pivot.csv
+│       ├── maomao_ambiguous_support.csv
+│       ├── audit_endpoint_counts.csv
+│       ├── audit_hierarchy_changes.csv
+│       └── metadata.json
+│
+├── pipelines/
+├── pyproject.toml
+└── README.md
+```
+
+> **Note:** The `downloads/maomao_release` directory is a temporary staging location and is not used by the workflows after the data have been copied. If additional Zenodo layers are downloaded, their relevant contents should likewise be copied or moved to the corresponding operational directories at the repository root until the operational project structure is restored. For example, the Embedding Layer contributes the `numerical_representation_data` directory, while the Benchmark Layer contributes the `split_process` directory. The layer name should not be retained as an additional directory level when preparing data for workflow execution. Descriptor and documentation layers may remain in their distributed structure when they are used only for consultation.
+
 ## Directory description
 
 | Directory | Description |
@@ -263,7 +370,7 @@ maomao/
 | Snakemake 9.x | Workflow dependency management and reproducible execution. |
 | Sylphy | Protein language model embeddings and one-hot sequence representations. |
 | BioSieve | Reproducible dataset partitioning. |
-| ROXY | Dataset characterization. |
+| ROXY (pinned legacy API) | Dataset characterization. |
 
 A CUDA-capable GPU is recommended for large protein language model embeddings but is not required for the resource-construction notebooks or one-hot encoding.
 
@@ -275,7 +382,11 @@ Python dependencies are declared in:
 pyproject.toml
 ```
 
-Important packages used throughout the repository include pandas, NumPy, PyYAML, scikit-learn, Jupyter, Snakemake, and model-specific dependencies required by Sylphy.
+Runtime dependencies are declared in `pyproject.toml`. Important packages include pandas, NumPy, PyYAML, scikit-learn, ROXY, and the model-specific dependencies provided by Sylphy.
+
+ROXY is installed from a pinned pre-refactor commit because the MAOMAO dataset-characterization utilities depend on the legacy `roxy.eda.summary` and `roxy.report` APIs, which are not available in current ROXY releases.
+
+Snakemake is installed separately through Conda, as described below. Jupyter is only required to execute the notebooks interactively and must be installed separately if needed.
 
 Some tokenizer-backed protein language models may also require packages such as `protobuf` or `sentencepiece`.
 
@@ -306,21 +417,30 @@ python -m pip install -e .
 ## 4. Install Snakemake
 
 ```bash
-conda install -c conda-forge snakemake
+conda install -c conda-forge -c bioconda snakemake
 ```
 
 Ensure that the `sylphy` and `biosieve` command-line programs required by the enabled workflows are available in the active environment.
 
 ## 5. Verify the installation
 
+Verify that MAOMAO and the required command-line programs are available in the active environment:
+
 ```bash
 python -c "import maomao; print('MAOMAO package available')"
 python -m snakemake --version
-sylphy --help
-biosieve --help
+sylphy --version
+biosieve --version
+python -c "from roxy.eda.summary import build_report; from roxy.report import dataset_report_to_html; print('ROXY legacy API available')"
 ```
 
-A workflow can be checked without executing it by running a Snakemake dry run:
+Before running a Snakemake dry run, restore the Core Layer as described in [Restoring the project data structure](#restoring-the-project-data-structure). From the repository root, confirm that the numerical-representation workflow input is available:
+
+```bash
+test -f processed_data/processed_data/maomao_sequence_pivot.csv
+```
+
+If this command fails, restore the Core Layer before continuing. Once the required file is available, check the workflow without executing it:
 
 ```bash
 cd pipelines/numerical_representations
@@ -705,27 +825,61 @@ The same input files, software environment, configuration files, and seeds can b
 
 # Citation
 
-When using MAOMAO, please cite the associated resource publication and archived software release.
+When using MAOMAO, please cite the associated resource publication and archived data release.
 
-## Software
+## Data release
 
 ```text
 Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data (Version 0.1.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.21584414
 ```
 
-## Manuscript
-
-```text
-MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data.
-Publication details pending.
-```
-
-## BibTeX
+### Data release BibTeX
 
 ```bibtex
+@dataset{soto2026maomao21584414,
+  author       = {Soto Garcia, Nicole and
+                  Uribe-Paredes, Roberto and
+                  Murgas, Leandro and
+                  Oróstica, Karen and
+                  González-Puelma, Jorge and
+                  Navarrete, Marcelo and
+                  CADET, Frederic and
+                  Medina-Ortiz, David},
+  title        = {MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data},
+  month        = jul,
+  year         = {2026},
+  publisher    = {Zenodo},
+  version      = {0.1.0},
+  doi          = {10.5281/zenodo.21584414},
+  url          = {https://doi.org/10.5281/zenodo.21584414}
+}
+```
 
-BibTeX citation pending.
+## Preprint
 
+```text
+Soto-Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data. bioRxiv. https://doi.org/10.64898/2026.07.29.741655
+```
+
+### Preprint BibTeX
+
+```bibtex
+@article{soto2026maomao,
+  title     = {MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data},
+  author    = {Soto-Garcia, Nicole and
+               Uribe-Paredes, Roberto and
+               Murgas, Leandro and
+               Or{\'o}stica, Karen and
+               Gonz{\'a}lez-Puelma, Jorge and
+               Navarrete, Marcelo and
+               Cadet, Frederic and
+               Medina-Ortiz, David},
+  journal   = {bioRxiv},
+  year      = {2026},
+  publisher = {Cold Spring Harbor Laboratory},
+  doi       = {10.64898/2026.07.29.741655},
+  url       = {https://doi.org/10.64898/2026.07.29.741655}
+}
 ```
 
 ---
@@ -734,7 +888,7 @@ BibTeX citation pending.
 
 This repository is distributed under the **MIT License**.
 
-See [LICENSE.txt](LICENSE.txt) for the complete license text.
+See [LICENSE](LICENSE) for the complete license text.
 
 Individual source datasets may retain their original terms, licenses, and citation requirements. Consult the corresponding source-level metadata and original provider before redistributing or reusing source-specific files.
 
