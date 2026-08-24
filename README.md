@@ -372,7 +372,15 @@ maomao/
 | BioSieve | Reproducible dataset partitioning. |
 | ROXY (pinned legacy API) | Dataset characterization. |
 
-A CUDA-capable GPU is recommended for large protein language model embeddings but is not required for the resource-construction notebooks or one-hot encoding.
+A CUDA-capable GPU is recommended for large protein language model embeddings. Resource-construction notebooks and one-hot encoding can be executed without GPU acceleration; however, platform-specific dependency issues may occur on macOS.
+
+> **macOS compatibility note:** The one-hot workflow may encounter `OMP: Error #15` in some macOS environments when multiple OpenMP runtimes are loaded by dependencies such as PyTorch and scikit-learn. If this occurs, a temporary workaround is to set:
+>
+> ```bash
+> export KMP_DUPLICATE_LIB_OK=TRUE
+> ```
+>
+> This issue is specific to some macOS environments and does not affect the recommended Linux workflow.
 
 ## Python dependencies
 
