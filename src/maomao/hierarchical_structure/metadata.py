@@ -968,7 +968,12 @@ def build_maomao_metadata(
                 "maomao_sequence_pivot.csv"
             ),
             "identifier_column": "id",
-            "identifier_format": "seq_<sequential_integer>",
+            "identifier_format": "sha256_<64_lowercase_hex>",
+            "identifier_algorithm": "SHA-256",
+            "identifier_input": (
+                "UTF-8 encoding of the normalized uppercase "
+                "peptide sequence with whitespace removed"
+            ),
             "sequence_column": "sequence",
             "annotation_columns": (
                 FINAL_ENDPOINTS

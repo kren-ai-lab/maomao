@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import json
-import re
 from typing import Iterable
 
+import json
+import re
+import hashlib
 import numpy as np
 import pandas as pd
 
@@ -91,6 +92,20 @@ def normalize_sequence(value):
         return pd.NA
     sequence = re.sub(r"\s+", "", str(value)).upper()
     return sequence or pd.NA
+
+
+def generate_sequence_id(sequence: str) -> str:
+    """
+    Generate a stable sequence-derived identifier using SHA-256.
+
+    The identifier is calculated from the UTF-8 representation of the
+    normalized peptide sequence.
+    """
+    digest = hashlib.sha256(
+        sequence.encode("utf-8")
+    ).hexdigest()
+
+    return f"sha256_{digest}"
 
 
 def sequence_qc(sequence, cfg: Config):
@@ -715,6 +730,14 @@ def apply_positive_only_hierarchy(
         ],
     ].copy()
 
+    hierarchy_audit.insert(
+        0,
+        "id",
+        hierarchy_audit[SEQUENCE_COL].map(
+            generate_sequence_id
+        ),
+    )
+
     canonical = result.drop(
         columns=["status_before_hierarchy"]
     )
@@ -818,11 +841,11 @@ def build_wide_pivot(evidence_long: pd.DataFrame):
     wide.insert(
         0,
         "id",
-        [
-            f"seq_{index}"
-            for index in range(1, len(wide) + 1)
-        ],
+        wide[SEQUENCE_COL].map(
+            generate_sequence_id
+        ),
     )
+
     return wide
 
 
@@ -920,6 +943,14 @@ def build_ambiguous_support_file(
                 ],
             )
         ]
+
+    result.insert(
+        0,
+        "id",
+        result[SEQUENCE_COL].map(
+            generate_sequence_id
+        ),
+    )
 
     return result
 
@@ -1030,9 +1061,25 @@ def run_assertions(
             [SEQUENCE_COL, "endpoint"]
         ).any(),
     )
+
     add(
         "one row per sequence in wide pivot",
         wide[SEQUENCE_COL].is_unique,
+    )
+
+    # Verify the sequence-derived SHA-256 identifiers.
+    expected_ids = wide[SEQUENCE_COL].map(
+        generate_sequence_id
+    )
+
+    add(
+        "one unique SHA-256 identifier per sequence",
+        wide["id"].is_unique,
+    )
+
+    add(
+        "sequence identifiers match SHA-256 digests",
+        wide["id"].equals(expected_ids),
     )
 
     ambiguity_matches_status = (
@@ -1045,6 +1092,7 @@ def run_assertions(
         )
         .all()
     )
+
     add(
         "ambiguity flag equals final ambiguous status",
         ambiguity_matches_status,
@@ -1061,6 +1109,7 @@ def run_assertions(
     support = evidence_long[
         "positive_evidence_fraction"
     ].dropna()
+
     add(
         "positive evidence fraction within [0,1]",
         support.between(0, 1).all(),
@@ -1076,6 +1125,7 @@ def run_assertions(
     applied = hierarchy_audit[
         "is_hierarchy_inferred"
     ]
+
     add(
         "applied hierarchy yields positive status",
         hierarchy_audit.loc[
@@ -1087,6 +1137,7 @@ def run_assertions(
     blocked = hierarchy_audit[
         "hierarchy_blocked_by_ambiguity"
     ]
+
     add(
         "ambiguous parents remain ambiguous",
         hierarchy_audit.loc[
@@ -1106,6 +1157,7 @@ def run_assertions(
     )
 
     valid_codes = {0, 1, 2, 3, 999}
+
     code_by_status = {
         "negative": 0,
         "positive": 1,
@@ -1128,6 +1180,7 @@ def run_assertions(
             .unique()
             .tolist()
         )
+
         add(
             f"{endpoint}: valid compact codes",
             endpoint_codes.issubset(
@@ -1144,11 +1197,13 @@ def run_assertions(
                 .eq(status_name)
                 .sum()
             )
+
             observed = int(
                 wide[endpoint]
                 .eq(code)
                 .sum()
             )
+
             add(
                 (
                     f"{endpoint}: {status_name} "
@@ -1162,7 +1217,6 @@ def run_assertions(
             )
 
     return pd.DataFrame(checks)
-
 
 def build_all(cfg: Config):
     cfg.output_root.mkdir(parents=True, exist_ok=True)

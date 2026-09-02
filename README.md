@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![Snakemake](https://img.shields.io/badge/Snakemake-9.x-green.svg)](https://snakemake.github.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21584414-blue?style=flat-square)](https://doi.org/10.5281/zenodo.21584414)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22261793-blue?style=flat-square)](https://doi.org/10.5281/zenodo.22261793)
 
 Nicole Soto-García<sup>1</sup>, Roberto Uribe-Paredes<sup>1</sup>, Leandro Murgas-Saavedra<sup>1</sup>, Karen Oróstica<sup>2</sup>, Jorge González-Puelma<sup>3,4</sup>, Marcelo Navarrete<sup>3,4</sup>, Frederic Cadet<sup>5</sup>, and David Medina-Ortiz<sup>1,*</sup>.<br>
 
@@ -141,13 +141,13 @@ The main pivot contains one row per unique peptide sequence:
 
 ```csv
 id,sequence,toxic,cytotoxic,hemolytic,cytolysis,neurotoxic,embryotoxic,ichthyotoxic
-seq_1,ACDEFGHIK,1,1,1,999,999,999,999
-seq_2,LLVLLAAAG,0,999,999,999,999,999,999
+sha256_c729ebc224388368ab8c8df88487ef137ad8bd5097651cf67c37bda5622c9f9a,ACDEFGHIK,1,1,1,999,999,999,999
+sha256_a816c180c9e987c35d04962bb7db2b17827c950dcf36706d5d611e2163171a4d,LLVLLAAAG,0,999,999,999,999,999,999
 ```
 
 | Column | Description |
 |---|---|
-| `id` | MAOMAO sequence identifier. |
+| `id` | Stable sequence-derived identifier generated as `sha256_<digest>` from the normalized peptide sequence. |
 | `sequence` | Standardized peptide sequence. |
 | Endpoint columns | Evidence code for each harmonized toxicity endpoint. |
 
@@ -202,7 +202,7 @@ The GitHub repository contains the source code, notebooks, configuration files, 
 
 The complete MAOMAO data release and associated computational artefacts are distributed through a single Zenodo record:
 
-- **MAOMAO data release (version 0.1.0):** [https://doi.org/10.5281/zenodo.21584414](https://doi.org/10.5281/zenodo.21584414)
+- **MAOMAO data release (version 1.0.0):** [https://doi.org/10.5281/zenodo.22261793](https://doi.org/10.5281/zenodo.22261793)
 
 The archived release includes the harmonized peptide toxicity resource, source- and resource-level metadata, provenance records, audit tables, numerical sequence representations, and reproducible endpoint-specific dataset partitions.
 
@@ -265,7 +265,7 @@ Download `core_layer.zip` from Zenodo:
 
 ```bash
 curl -fL \
-  "https://zenodo.org/api/records/21584414/files/core_layer.zip/content" \
+  "https://zenodo.org/api/records/22261793/files/core_layer.zip/content" \
   -o downloads/core_layer.zip
 ```
 
@@ -838,13 +838,13 @@ When using MAOMAO, please cite the associated resource publication and archived 
 ## Data release
 
 ```text
-Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data (Version 0.1.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.21584414
+Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data (Version 1.0.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.22261793
 ```
 
 ### Data release BibTeX
 
 ```bibtex
-@dataset{soto2026maomao21584414,
+@dataset{soto2026maomao22261793,
   author       = {Soto Garcia, Nicole and
                   Uribe-Paredes, Roberto and
                   Murgas, Leandro and
@@ -854,12 +854,12 @@ Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma,
                   CADET, Frederic and
                   Medina-Ortiz, David},
   title        = {MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data},
-  month        = jul,
+  month        = sep,
   year         = {2026},
   publisher    = {Zenodo},
-  version      = {0.1.0},
-  doi          = {10.5281/zenodo.21584414},
-  url          = {https://doi.org/10.5281/zenodo.21584414}
+  version      = {1.0.0},
+  doi          = {10.5281/zenodo.22261793},
+  url          = {https://doi.org/10.5281/zenodo.22261793}
 }
 ```
 
