@@ -184,6 +184,7 @@ def compute_top_level_toxicity_summary(
         "neurotoxic",
         "embryotoxic",
         "ichthyotoxic",
+        'anti_mammalian_cells'
     ]
     _validate_required_columns(df_lower, required_cols)
 
@@ -361,6 +362,7 @@ def plot_dataset_composition_by_endpoint_vertical(
             "neurotoxic",
             "embryotoxic",
             "ichthyotoxic",
+            'anti_mammalian_cells'
         ]
     else:
         effect_cols = _normalize_names(effect_cols)
@@ -368,6 +370,7 @@ def plot_dataset_composition_by_endpoint_vertical(
     if order is None:
         order = [
             "toxic",
+            'anti_mammalian_cells',
             "cytotoxic",
             "embryotoxic",
             "ichthyotoxic",
@@ -388,6 +391,7 @@ def plot_dataset_composition_by_endpoint_vertical(
     if endpoint_colors is None:
         endpoint_colors = {
             "toxic": "#C5A3B0",
+            'anti_mammalian_cells': "#CEC4DE",
             "cytotoxic": "#CEC4DE",
             "neurotoxic": "#CEC4DE",
             "embryotoxic": "#CEC4DE",
@@ -401,6 +405,7 @@ def plot_dataset_composition_by_endpoint_vertical(
     if endpoint_label_map is None:
         endpoint_label_map = {
             "toxic": "Toxic",
+            'anti_mammalian_cells': "Anti-Mammalian Cells",
             "cytotoxic": "Cytotoxic",
             "embryotoxic": "Embryotoxic",
             "ichthyotoxic": "Ichthyotoxic",
@@ -753,6 +758,7 @@ def plot_all_effects_cooccurrence_heatmap(
 
     if effect_order is None:
         effect_order = [
+            'anti_mammalian_cells',
             "cytotoxic",
             "embryotoxic",
             "ichthyotoxic",
@@ -765,6 +771,7 @@ def plot_all_effects_cooccurrence_heatmap(
 
     if label_map is None:
         label_map = {
+            'anti_mammalian_cells': "Anti-Mammalian",
             "cytotoxic": "Cytotoxic",
             "neurotoxic": "Neurotoxic",
             "hemolytic": "Hemolytic",
@@ -1049,6 +1056,7 @@ def compute_effect_cooccurrence(
 
     if effect_order is None:
         effect_order = [
+            "anti_mammalian_cells",
             "cytotoxic",
             "embryotoxic",
             "ichthyotoxic",

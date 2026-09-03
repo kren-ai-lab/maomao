@@ -23,6 +23,7 @@ ENDPOINTS = [
     "neurotoxic",
     "embryotoxic",
     "ichthyotoxic",
+    "anti_mammalian_cells"
 ]
 
 ENDPOINT_FOLDER_MAP = {
@@ -33,11 +34,13 @@ ENDPOINT_FOLDER_MAP = {
     "neurotoxic": ["neurotoxic"],
     "embryotoxic": ["embryotoxic"],
     "ichthyotoxic": ["ichthyotoxic"],
+    "anti_mammalian_cells": ["anti_mammalian_cells"],
 }
 
 PARENT_CHILDREN = {
     "cytotoxic": ["hemolytic", "cytolysis"],
     "toxic": ["cytotoxic", "neurotoxic", "embryotoxic", "ichthyotoxic"],
+    "anti_mammalian_cells": ["anti_mammalian_cells"],
 }
 
 STATUS_FILES = {

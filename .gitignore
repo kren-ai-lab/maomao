@@ -1,0 +1,10 @@
+*.json
+/raw_data
+/processed_data
+/dataset_characterization
+/src/maomao/__pycache__
+/src/maomao/utils/__pycache__
+/src/maomao/parsing/__pycache__
+/src/maomao/dataset_description/__pycache__
+/src/maomao/physicochemical_characteristics/__pycache__
+/src/maomao/hierarchical_structure/__pycache__
