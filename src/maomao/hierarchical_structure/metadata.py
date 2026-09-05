@@ -17,6 +17,7 @@ FINAL_ENDPOINTS = [
     "neurotoxic",
     "embryotoxic",
     "ichthyotoxic",
+    "anti_mammalian_cells"
 ]
 
 LABEL_ENCODING = {
@@ -1108,6 +1109,21 @@ def build_maomao_metadata(
                     ],
                 },
                 {
+                    "term": "anti_mammalian_cells",
+                    "label_type": (
+                        "specific toxicity "
+                        "endpoint"
+                    ),
+                    "definition": (
+                        "Evidence of peptide toxicity "
+                        "affecting mammalian cells."
+                    ),
+                    "parent_terms": [
+                        "cytotoxic",
+                        "toxic",
+                    ],
+                },
+                {
                     "term": "hemolytic",
                     "label_type": (
                         "specific toxicity "
@@ -1240,14 +1256,14 @@ def build_maomao_metadata(
                 {
                     "rule_id": "R2",
                     "description": (
-                        "Positive Hemolytic or "
-                        "Cytolysis support is "
-                        "propagated to "
-                        "Cytotoxic."
+                        "Positive Hemolytic, Cytolysis, or "
+                        "Anti-mammalian-cells support is "
+                        "propagated to Cytotoxic."
                     ),
                     "source_terms": [
                         "hemolytic",
                         "cytolysis",
+                        "anti_mammalian_cells",
                     ],
                     "target_term": (
                         "cytotoxic"

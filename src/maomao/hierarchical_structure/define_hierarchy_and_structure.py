@@ -20,10 +20,10 @@ ENDPOINTS = [
     "cytotoxic",
     "hemolytic",
     "cytolysis",
+    "anti_mammalian_cells",
     "neurotoxic",
     "embryotoxic",
     "ichthyotoxic",
-    "anti_mammalian_cells"
 ]
 
 ENDPOINT_FOLDER_MAP = {
@@ -38,9 +38,17 @@ ENDPOINT_FOLDER_MAP = {
 }
 
 PARENT_CHILDREN = {
-    "cytotoxic": ["hemolytic", "cytolysis"],
-    "toxic": ["cytotoxic", "neurotoxic", "embryotoxic", "ichthyotoxic"],
-    "anti_mammalian_cells": ["anti_mammalian_cells"],
+    "cytotoxic": [
+        "hemolytic",
+        "cytolysis",
+        "anti_mammalian_cells",
+    ],
+    "toxic": [
+        "cytotoxic",
+        "neurotoxic",
+        "embryotoxic",
+        "ichthyotoxic",
+    ],
 }
 
 STATUS_FILES = {
@@ -879,7 +887,7 @@ def build_ambiguous_support_file(
     Build the separate ambiguous-sequence support table.
 
     It contains only sequences ambiguous in at least one of these endpoints:
-    cytotoxic, hemolytic, neurotoxic, and toxic.
+    cytotoxic, hemolytic, anti_mammalian_cells, neurotoxic, and toxic.
 
     Values such as 20-30 or 70-80 indicate the positive-support interval.
     The value 999 means no ambiguous information for that endpoint.
@@ -887,6 +895,7 @@ def build_ambiguous_support_file(
     ambiguous_endpoints = [
         "cytotoxic",
         "hemolytic",
+        "anti_mammalian_cells",
         "neurotoxic",
         "toxic",
     ]
@@ -1149,14 +1158,21 @@ def run_assertions(
         ].eq("ambiguous").all(),
     )
 
+    leaf_endpoints = [
+        endpoint
+        for endpoint in ENDPOINTS
+        if endpoint not in PARENT_CHILDREN
+    ]
+
     add(
-        "cytolysis is never hierarchy-inferred",
+        "leaf endpoints are never hierarchy-inferred",
         not evidence_long.loc[
-            evidence_long["endpoint"].eq(
-                "cytolysis"
+            evidence_long["endpoint"].isin(
+                leaf_endpoints
             ),
             "is_hierarchy_inferred",
         ].any(),
+        f"leaf_endpoints={leaf_endpoints}",
     )
 
     valid_codes = {0, 1, 2, 3, 999}
@@ -1253,6 +1269,8 @@ def build_all(cfg: Config):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "input_root": str(cfg.input_root),
         "output_root": str(cfg.output_root),
+        "endpoints": ENDPOINTS,
+        "parent_children": PARENT_CHILDREN,
         "hierarchy_rule": "positive support propagates upward, but an ambiguous parent remains ambiguous",
         "ambiguity_rule": "endpoint-specific ambiguity has priority over hierarchical positivity and is the final canonical state",
         "row_status_rule": "stage-2 internal flags take priority over status filename",
