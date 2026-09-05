@@ -59,7 +59,7 @@ At minimum, it must contain:
 
 | Column | Description |
 |---|---|
-| `id` | Unique sequence identifier |
+| `id` | Unique sequence identifier. MAOMAO uses stable sequence-derived identifiers in the format `sha256_<64_lowercase_hex>`. |
 | `sequence` | Protein or peptide sequence |
 | `label` | Target label used later for analysis, splitting, and training |
 
@@ -67,8 +67,8 @@ Example:
 
 ```csv
 id,sequence,label
-seq_001,ACDEFGHIK,1
-seq_002,LLVLLAAAG,0
+sha256_c729ebc224388368ab8c8df88487ef137ad8bd5097651cf67c37bda5622c9f9a,ACDEFGHIK,1
+sha256_a816c180c9e987c35d04962bb7db2b17827c950dcf36706d5d611e2163171a4d,LLVLLAAAG,0
 ```
 
 The column names are defined in the `dataset` block:
