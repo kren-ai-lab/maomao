@@ -1093,3 +1093,498 @@ def read_fasta_ntxpred(path_fasta):
     ]
 
     return pd.DataFrame(records)
+
+def parse_activities(df):
+    """
+    Parse and standardize peptide activity measurements.
+
+    This function processes the ``activity`` column of a DataFrame and
+    extracts structured information from measurements reported as MHC,
+    LD50, HC50, or LC50.
+
+    The function identifies the activity endpoint, comparison operator,
+    numeric value, associated error, and measurement unit. Unicode
+    symbols, decimal separators, scientific notation, and equivalent
+    unit representations are standardized.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input DataFrame containing an ``activity`` column with activity
+        measurements expressed as text.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Copy of the input DataFrame with the following additional columns:
+
+        - ``activity_type``:
+          Original activity text after whitespace normalization.
+        - ``activity_type_clean``:
+          Standardized endpoint (MHC, LD50, HC50, or LC50).
+        - ``activity_relation``:
+          Comparison operator associated with the measurement
+          (>, >=, <, <=, or =).
+        - ``activity_value``:
+          Activity value converted to a floating-point number.
+        - ``activity_error``:
+          Reported error extracted from ``± value`` or ``[value]`` notation.
+        - ``activity_unit``:
+          Standardized measurement unit.
+
+    Notes
+    -----
+    If no explicit comparison operator is reported before the activity
+    value, equality (``=``) is assumed.
+
+    Missing or unparsable values are returned as ``NaN``.
+    """
+    df_parsed = df.copy()
+
+    # ------------------------------------------------------------------
+    # 1. Clean activity text
+    # ------------------------------------------------------------------
+    df_parsed["activity_type"] = (
+        df_parsed["activity"]
+        .astype("string")
+        .str.strip()
+    )
+
+    # ------------------------------------------------------------------
+    # 2. Identify activity endpoint
+    # ------------------------------------------------------------------
+    df_parsed["activity_type_clean"] = (
+        df_parsed["activity_type"]
+        .str.extract(
+            r"(MHC|LD50|HC50|LC50)",
+            flags=re.IGNORECASE,
+            expand=False,
+        )
+        .str.upper()
+    )
+
+    # ------------------------------------------------------------------
+    # 3. Extract comparison operator
+    # ------------------------------------------------------------------
+    def extract_relation(text):
+        """
+        Extract the comparison operator associated with an activity value.
+        """
+        if pd.isna(text):
+            return np.nan
+
+        text = (
+            str(text)
+            .replace("≥", ">=")
+            .replace("≤", "<=")
+            .replace("−", "-")
+        )
+
+        # Remove the endpoint so that the "50" in LD50, HC50, or LC50
+        # is not interpreted as the activity value.
+        text_without_endpoint = re.sub(
+            r"(?:MHC|LD50|HC50|LC50)",
+            "",
+            text,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+        number_match = re.search(
+            r"\d+(?:[.,]\d+)?",
+            text_without_endpoint,
+        )
+
+        if number_match is None:
+            return np.nan
+
+        operators = list(
+            re.finditer(
+                r">=|<=|>|<|=",
+                text_without_endpoint,
+            )
+        )
+
+        previous_operators = [
+            match
+            for match in operators
+            if match.start() < number_match.start()
+        ]
+
+        if previous_operators:
+            return previous_operators[-1].group()
+
+        return "="
+
+    df_parsed["activity_relation"] = (
+        df_parsed["activity_type"]
+        .apply(extract_relation)
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Extract activity value
+    # ------------------------------------------------------------------
+    df_parsed["activity_value"] = (
+        df_parsed["activity_type"]
+        .str.extract(
+            r"(?:MHC|LD50|HC50|LC50).*?"
+            r"(\d+(?:[.,]\d+)?"
+            r"(?:\s*(?:x|×|\*)\s*10\s*\^?\s*[-−+]?\s*\d+)?)",
+            flags=re.IGNORECASE,
+            expand=False,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Convert activity value to numeric
+    # ------------------------------------------------------------------
+    def parse_number(value):
+        """
+        Convert standard or scientific-notation activity values to float.
+        """
+        if pd.isna(value):
+            return np.nan
+
+        value = (
+            str(value)
+            .replace("−", "-")
+            .replace("×", "x")
+            .replace(",", ".")
+            .replace("^", "")
+            .replace(" ", "")
+        )
+
+        scientific_match = re.fullmatch(
+            r"([+-]?\d+(?:\.\d+)?)(?:x|\*)10([+-]?\d+)",
+            value,
+        )
+
+        if scientific_match:
+            base = float(scientific_match.group(1))
+            exponent = int(scientific_match.group(2))
+
+            return base * (10 ** exponent)
+
+        try:
+            return float(value)
+
+        except ValueError:
+            return np.nan
+
+    df_parsed["activity_value"] = (
+        df_parsed["activity_value"]
+        .apply(parse_number)
+        .astype(float)
+    )
+
+    # ------------------------------------------------------------------
+    # 6. Extract error reported as ± value
+    # ------------------------------------------------------------------
+    error_pm = (
+        df_parsed["activity_type"]
+        .str.extract(
+            r"±\s*(\d+(?:[.,]\d+)?)",
+            expand=False,
+        )
+        .astype("string")
+        .str.replace(",", ".", regex=False)
+    )
+
+    error_pm = pd.to_numeric(
+        error_pm,
+        errors="coerce",
+    )
+
+    # ------------------------------------------------------------------
+    # 7. Extract error reported as [value]
+    # ------------------------------------------------------------------
+    error_bracket = (
+        df_parsed["activity_type"]
+        .str.extract(
+            r"\[(\d+(?:[.,]\d+)?)\]",
+            expand=False,
+        )
+        .astype("string")
+        .str.replace(",", ".", regex=False)
+    )
+
+    error_bracket = pd.to_numeric(
+        error_bracket,
+        errors="coerce",
+    )
+
+    # ------------------------------------------------------------------
+    # 8. Combine error values
+    # ------------------------------------------------------------------
+    df_parsed["activity_error"] = (
+        error_pm
+        .fillna(error_bracket)
+        .astype(float)
+    )
+
+    # ------------------------------------------------------------------
+    # 9. Extract measurement unit
+    # ------------------------------------------------------------------
+    df_parsed["activity_unit"] = (
+        df_parsed["activity_type"]
+        .str.extract(
+            r"(µM|μM|uM|"
+            r"µg/mL|μg/mL|ug/mL|"
+            r"µg/ml|μg/ml|ug/ml|"
+            r"mg/mL|mg/ml|"
+            r"mg/L|mg/l|"
+            r"g/mL|g/ml|"
+            r"g/L|g/l|"
+            r"μmol/L|µmol/L|"
+            r"mM|"
+            r"g\s+ml-1|"
+            r"ml-1)",
+            expand=False,
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # 10. Standardize measurement units
+    # ------------------------------------------------------------------
+    df_parsed["activity_unit"] = (
+        df_parsed["activity_unit"]
+        .astype("string")
+        .str.replace(r"\s+", "", regex=True)
+        .replace(
+            {
+                "μM": "µM",
+                "uM": "µM",
+                "μmol/L": "µM",
+                "µmol/L": "µM",
+                "μg/mL": "µg/mL",
+                "μg/ml": "µg/mL",
+                "µg/ml": "µg/mL",
+                "ug/mL": "µg/mL",
+                "ug/ml": "µg/mL",
+                "mg/ml": "mg/mL",
+                "mg/l": "mg/L",
+                "g/ml": "g/mL",
+                "g/l": "g/L",
+                "gml-1": "g/mL",
+            }
+        )
+    )
+
+    return df_parsed
+
+
+def create_label(row):
+    """
+    Create a standardized activity label from parsed measurement fields.
+
+    The label is constructed using the activity relation, numeric value,
+    and optional error. Exact measurements are returned without an
+    explicit equality sign, whereas bounded measurements retain their
+    comparison operator.
+
+    Parameters
+    ----------
+    row : pandas.Series
+        Row containing the columns ``activity_relation``,
+        ``activity_value``, and ``activity_error``.
+
+    Returns
+    -------
+    str or numpy.nan
+        Formatted activity label. Returns ``NaN`` when the activity value
+        is missing.
+
+    Examples
+    --------
+    ``= 25`` with no error -> ``25``
+
+    ``= 25`` with error 2 -> ``25 ± 2``
+
+    ``> 100`` with no error -> ``> 100``
+
+    ``>= 50`` with error 5 -> ``>= 50 ± 5``
+    """
+    relation = row["activity_relation"]
+    value = row["activity_value"]
+    error = row["activity_error"]
+
+    if pd.isna(value):
+        return np.nan
+
+    # Equality is assumed when a parsed value has no explicit relation.
+    if pd.isna(relation):
+        relation = "="
+
+    value_str = f"{value:g}"
+
+    if relation == "=":
+        if pd.notna(error):
+            return f"{value_str} ± {error:g}"
+
+        return value_str
+
+    if pd.notna(error):
+        return f"{relation} {value_str} ± {error:g}"
+
+    return f"{relation} {value_str}"
+
+def has_annotation(value):
+    """
+    Return True when a modification-related field contains a usable value.
+
+    Empty strings and common textual missing-value representations are treated
+    as absent annotations.
+    """
+    if pd.isna(value):
+        return False
+
+    value = str(value).strip()
+
+    return value.lower() not in {
+        "",
+        "none",
+        "na",
+        "n/a",
+        "null",
+    }
+
+
+def describe_modifications(row):
+    """
+    Build a readable modification annotation for a Hemolytik 2.0 record.
+
+    Terminal modifications, non-linear topology, D/mixed stereochemistry,
+    and non-natural residue annotations are retained when present.
+    """
+    modifications = []
+
+    if has_annotation(row["nter"]) and str(row["nter"]).strip() != "Free":
+        modifications.append(f"N-terminal: {str(row['nter']).strip()}")
+
+    if has_annotation(row["cter"]) and str(row["cter"]).strip() != "Free":
+        modifications.append(f"C-terminal: {str(row['cter']).strip()}")
+
+    if has_annotation(row["lyn_cyc"]) and str(row["lyn_cyc"]).strip() != "Linear":
+        modifications.append(f"Topology: {str(row['lyn_cyc']).strip()}")
+
+    if has_annotation(row["ldmix"]) and str(row["ldmix"]).strip() != "L":
+        modifications.append(f"Stereochemistry: {str(row['ldmix']).strip()}")
+
+    if has_annotation(row["non_nat"]):
+        modifications.append(f"Non-natural: {str(row['non_nat']).strip()}")
+
+    if not modifications:
+        return "Unspecified modification"
+
+    return "; ".join(modifications)
+
+def assign_hemolytic_label(value):
+    """
+    Convert the Hemolytik 2.0 non-hemolytic annotation into a binary label.
+
+    Missing ``non_hem`` values and ``Low hemolytic`` records are treated as
+    positive hemolytic evidence (label 1). Explicit ``Non-hemolytic`` records
+    are treated as negative evidence (label 0).
+
+    Unexpected non-missing annotations raise an error instead of being
+    silently assigned to a class.
+    """
+    if pd.isna(value):
+        return 1
+
+    value = str(value).strip()
+
+    if value == "Low hemolytic":
+        return 1
+
+    if value == "Non-hemolytic":
+        return 0
+
+    raise ValueError(f"Unexpected non_hem value: {value!r}")
+
+def prepare_regression_data(df, activity_pattern, modified=False):
+    """
+    Parse quantitative hemolytic measurements from row-level source records.
+
+    Regression records are prepared independently from classification
+    deduplication so that multiple measurements reported for the same peptide
+    sequence are preserved.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Source-level peptide records containing an ``activity`` column.
+    modified : bool, default=False
+        Whether the input contains the ``modification`` column.
+
+    Returns
+    -------
+    tuple[pandas.DataFrame, pandas.DataFrame]
+        Parsed valid regression records and records that could not be fully
+        parsed into endpoint, numeric value, and measurement unit.
+    """
+    regression_raw = df.loc[
+        df["activity"].astype("string").str.contains(
+            activity_pattern,
+            case=False,
+            na=False,
+            regex=True,
+        )
+    ].copy()
+
+    parsed = parse_activities(regression_raw)
+
+    parsed["label"] = parsed.apply(
+        create_label,
+        axis=1,
+    )
+
+    invalid_mask = (
+        parsed["activity_type_clean"].isna()
+        | parsed["activity_value"].isna()
+        | parsed["activity_unit"].isna()
+        | parsed["label"].isna()
+    )
+
+    parsing_errors = (
+        parsed.loc[invalid_mask]
+        .copy()
+        .reset_index(drop=True)
+    )
+
+    valid = parsed.loc[~invalid_mask].copy()
+
+    output_columns = ["sequence"]
+
+    if modified:
+        output_columns.append("modification")
+
+    output_columns.extend(
+        [
+            "source",
+            "label",
+            "activity_unit",
+            "activity_type_clean",
+        ]
+    )
+
+    valid = (
+        valid[output_columns]
+        .rename(columns={"activity_unit": "unit"})
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
+
+    return valid, parsing_errors
+
+def select_endpoint(df, endpoint):
+    """
+    Return one endpoint-specific regression dataset.
+    """
+    return (
+        df.loc[
+            df["activity_type_clean"].eq(endpoint)
+        ]
+        .drop(columns="activity_type_clean")
+        .reset_index(drop=True)
+    )
