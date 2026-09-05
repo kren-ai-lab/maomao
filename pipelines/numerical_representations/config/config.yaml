@@ -26,8 +26,8 @@ representation:
   #max_length: 70
 
   # For embeddings:
-  model: "facebook/esm2_t6_8M_UR50D"
-  model_alias: "esm2_t6_8M_UR50D"
+  model: "ElnaggarLab/ankh3-large"
+  model_alias: "ankh3_large"
   device: "cuda"
   precision: "fp32"
   batch_size: 16
@@ -50,7 +50,7 @@ analysis:
   # output_dir: "../../analysed_embedding_space/antioxidant_proteins/esm2_t6_8M_UR50D"
 
   feature_prefix: "p_"
-  prefix: "one_hot"
+  prefix: "ankh3_large"
   random_state: 42
 
   tsne_perplexity: 30.0

@@ -6,9 +6,9 @@ global:
 
 # Dataset definition and column names used throughout the workflow.
 dataset:
-  name: "maomao_toxic"
+  name: "maomao_anti_mammalian_cells"
   representation_dataset: "maomao"
-  input_data: "../data/toxic/sequences.csv"
+  input_data: "../data/anti_mammalian_cells/sequences.csv"
   sequence_col: "sequence"
   id_col: "id"
   label_col: "label"
@@ -104,7 +104,7 @@ split_sources:
       esm2_t6_8M_UR50D:
         enabled: false
         representation_key: "esm2_t6_8M_UR50D"
-        root: "../../reduced_distance/maomao_toxic/esm2_t6_8M_UR50D_embedding_distance_reduction"
+        root: "../../reduced_distance/maomao_anti_mammalian_cells/esm2_t6_8M_UR50D_embedding_distance_reduction"
         thresholds: "auto"
 
   reduced_homology:
@@ -112,7 +112,7 @@ split_sources:
     reductions:
       homology_mmseqs2_reduction:
         enabled: false
-        root: "../../reduced_homology/maomao_toxic/homology_mmseqs2_reduction"
+        root: "../../reduced_homology/maomao_anti_mammalian_cells/homology_mmseqs2_reduction"
         thresholds: "auto"
 
   reduced_descriptor:
@@ -121,7 +121,7 @@ split_sources:
       one_hot:
         enabled: false
         representation_key: "one_hot"
-        root: "../../reduced_descriptor/maomao_toxic/one_hot_reduction"
+        root: "../../reduced_descriptor/maomao_anti_mammalian_cells/one_hot_reduction"
         thresholds: "auto"
 
 # Partitioning methods and their parameters.
@@ -170,7 +170,7 @@ cross_features:
 output:
   root: "../../split_process"
   include_dataset_folder: true
-  materialized_root: "../../split_process_inputs/maomao_toxic"
+  materialized_root: "../../split_process_inputs/maomao_anti_mammalian_cells"
 
 # Validation applied before and after split generation.
 validation:
