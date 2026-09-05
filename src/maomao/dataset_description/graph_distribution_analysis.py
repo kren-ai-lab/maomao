@@ -370,13 +370,13 @@ def plot_dataset_composition_by_endpoint_vertical(
     if order is None:
         order = [
             "toxic",
-            'anti_mammalian_cells',
             "cytotoxic",
             "embryotoxic",
             "ichthyotoxic",
             "neurotoxic",
-            "hemolytic",
+            'anti_mammalian_cells',
             "cytolysis",
+            "hemolytic",
         ]
     else:
         order = _normalize_names(order)
@@ -391,7 +391,7 @@ def plot_dataset_composition_by_endpoint_vertical(
     if endpoint_colors is None:
         endpoint_colors = {
             "toxic": "#C5A3B0",
-            'anti_mammalian_cells': "#CEC4DE",
+            'anti_mammalian_cells': "#DEB089",
             "cytotoxic": "#CEC4DE",
             "neurotoxic": "#CEC4DE",
             "embryotoxic": "#CEC4DE",
