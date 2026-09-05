@@ -3,9 +3,9 @@
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
 [![Snakemake](https://img.shields.io/badge/Snakemake-9.x-green.svg)](https://snakemake.github.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22261793-blue?style=flat-square)](https://doi.org/10.5281/zenodo.22261793)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22312156-blue?style=flat-square)](https://doi.org/10.5281/zenodo.22312156)
 
-Nicole Soto-García<sup>1</sup>, Roberto Uribe-Paredes<sup>1</sup>, Leandro Murgas-Saavedra<sup>1</sup>, Karen Oróstica<sup>2</sup>, Jorge González-Puelma<sup>3,4</sup>, Marcelo Navarrete<sup>3,4</sup>, Frederic Cadet<sup>5</sup>, and David Medina-Ortiz<sup>1,*</sup>.<br>
+Nicole Soto-García<sup>1</sup>, Julián García-Vinuesa<sup>1</sup>, Roberto Uribe-Paredes<sup>1</sup>, Leandro Murgas-Saavedra<sup>1</sup>, Karen Oróstica<sup>2</sup>, Jorge González-Puelma<sup>3,4</sup>, Marcelo Navarrete<sup>3,4</sup>, Frederic Cadet<sup>5</sup>, and David Medina-Ortiz<sup>1,*</sup>.<br>
 
 <sup>1</sup><sub>Departamento de Ingeniería en Computación, Universidad de Magallanes, Avenida Bulnes 01855, 6210427, Punta Arenas, Chile.</sub><br>
 <sup>2</sup><sub>Data Science Institute, Universidad del Desarrollo, Av. Plaza 680, 7610615, Santiago, Chile.</sub><br>
@@ -41,6 +41,7 @@ MAOMAO is a **data resource and resource-construction framework**. It is not pre
   - [Numerical representations](#1-numerical-representations)
   - [Endpoint-specific split preparation](#2-endpoint-specific-split-preparation)
   - [Dataset splitting](#3-dataset-splitting)
+- [Resource use examples](#resource-use-examples)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Reproducibility and traceability](#reproducibility-and-traceability)
@@ -60,16 +61,17 @@ MAOMAO addresses these limitations through a reproducible workflow that:
 - standardizes and validates peptide sequences;
 - harmonizes toxicity terminology;
 - organizes endpoints using an explicit hierarchy;
-- distinguishes positive, negative, ambiguous and unlabeled;
+- distinguishes positive, negative, ambiguous, unlabeled, and no-information evidence states;
 - preserves source-level provenance and endpoint-specific metadata;
 - records hierarchy-derived annotation changes;
 - produces a sequence-level pivot resource;
+- integrates standardized quantitative toxicity measurements;
+- generates compact sequence cards for direct sequence-level inspection;
 - generates numerical representations for computational reuse;
-- creates reproducible endpoint-specific dataset partitions.
+- creates reproducible endpoint-specific dataset partitions;
+- provides practical notebooks demonstrating downstream resource reuse.
 
-The final resource is organized around stable sequence identifiers, explicit endpoint columns, structured metadata, audit tables, and reusable workflow outputs.
-
----
+The final resource is organized around stable sequence identifiers, explicit endpoint columns, structured metadata, audit tables, quantitative toxicity measurements, sequence-level profiles, and reusable workflow outputs.
 
 # Resource scope
 
@@ -81,13 +83,12 @@ MAOMAO currently organizes evidence for the following final toxicity endpoints:
 | `cytotoxic` | Toxicity affecting cells. |
 | `hemolytic` | Lysis or damage of red blood cells. |
 | `cytolysis` | Evidence associated with cell lysis. |
+| `anti_mammalian_cells` | Toxicity affecting mammalian cells. |
 | `neurotoxic` | Toxicity affecting the nervous system. |
 | `embryotoxic` | Toxicity affecting embryos or embryonic development. |
 | `ichthyotoxic` | Toxicity affecting fish. |
 
 Source-specific terminology is normalized during processing so that heterogeneous annotations can be integrated into this common endpoint vocabulary.
-
----
 
 # Ontology and evidence model
 
@@ -99,11 +100,16 @@ MAOMAO uses the following toxicity hierarchy:
 Toxic
 ├── Cytotoxic
 │   ├── Hemolytic
-│   └── Cytolysis
+│   ├── Cytolysis
+│   └── Anti-mammalian cells
 ├── Neurotoxic
 ├── Embryotoxic
 └── Ichthyotoxic
 ```
+
+Positive evidence can propagate upward through this hierarchy. For example, positive `anti_mammalian_cells` evidence supports `cytotoxic` and, transitively, `toxic`.
+
+Negative, ambiguous, unlabeled, and no-information states are not propagated through the hierarchy. Direct ambiguity at a parent endpoint is retained and is not overwritten by positive hierarchical support.
 
 ## Evidence encoding
 
@@ -117,7 +123,7 @@ The sequence-level pivot uses the following codes:
 | `3` | Unlabeled | The sequence was present, but the endpoint was not labeled. |
 | `999` | No information | No usable information was available for the endpoint. |
 
----
+`999` denotes absence of usable endpoint information and must not be interpreted as negative evidence.
 
 # Main resource outputs
 
@@ -130,19 +136,24 @@ processed_data/processed_data/
 | File | Description |
 |---|---|
 | `maomao_sequence_pivot.csv` | Main sequence-level MAOMAO resource. |
+| `maomao_toxicity_measurements.csv` | Standardized quantitative toxicity measurements linked to MAOMAO sequences. |
+| `maomao_sequence_pivot_with_toxicity_properties.csv` | Sequence-level pivot augmented with available quantitative toxicity properties. |
 | `metadata.json` | Resource-level metadata, vocabulary, hierarchy, provenance summaries, processing rules, and statistics. |
+| `metadata_toxicity_properties.json` | Metadata describing the quantitative toxicity-property integration. |
 | `maomao_ambiguous_support.csv` | Supporting evidence associated with ambiguous annotations. |
 | `audit_endpoint_counts.csv` | Endpoint-level counts used to audit the final resource. |
 | `audit_hierarchy_changes.csv` | Record of annotations modified or supported by hierarchy rules. |
+| `audit_toxicity_property_cross_reference.csv` | Audit linking standardized toxicity measurements to MAOMAO sequences. |
+| `audit_toxicity_property_unmatched_sequences.csv` | Audit of quantitative-property records that could not be linked to the master sequence resource. |
 
 ## Main pivot structure
 
 The main pivot contains one row per unique peptide sequence:
 
 ```csv
-id,sequence,toxic,cytotoxic,hemolytic,cytolysis,neurotoxic,embryotoxic,ichthyotoxic
-sha256_c729ebc224388368ab8c8df88487ef137ad8bd5097651cf67c37bda5622c9f9a,ACDEFGHIK,1,1,1,999,999,999,999
-sha256_a816c180c9e987c35d04962bb7db2b17827c950dcf36706d5d611e2163171a4d,LLVLLAAAG,0,999,999,999,999,999,999
+id,sequence,toxic,cytotoxic,hemolytic,cytolysis,neurotoxic,embryotoxic,ichthyotoxic,anti_mammalian_cells
+sha256_c729ebc224388368ab8c8df88487ef137ad8bd5097651cf67c37bda5622c9f9a,ACDEFGHIK,1,1,1,999,999,999,999,999
+sha256_a816c180c9e987c35d04962bb7db2b17827c950dcf36706d5d611e2163171a4d,LLVLLAAAG,0,999,999,999,999,999,999,0
 ```
 
 | Column | Description |
@@ -151,9 +162,21 @@ sha256_a816c180c9e987c35d04962bb7db2b17827c950dcf36706d5d611e2163171a4d,LLVLLAAA
 | `sequence` | Standardized peptide sequence. |
 | Endpoint columns | Evidence code for each harmonized toxicity endpoint. |
 
-The same `id` is preserved across the master resource, numerical representations, endpoint-specific datasets, and generated splits.
+The same `id` is preserved across the master resource, quantitative toxicity measurements, sequence profiles, numerical representations, endpoint-specific datasets, and generated splits.
 
----
+## Quantitative toxicity properties
+
+MAOMAO v1.1.0 retains standardized source-reported quantitative toxicity measurements when they can be linked to a normalized sequence. The current integrated measurement types are `HC50`, `LC50`, `LD50`, and `MHC`.
+
+Where available, records preserve the measurement type, comparison relation, numerical value, reported error, unit, original reported value, experimental context, and source provenance. Measurement types and units remain distinct; MAOMAO does not silently pool them or assume automatic conversion between mass and molar concentration units.
+
+## Sequence profiles
+
+Compact sequence cards are distributed as part of the **Core Layer** in the Zenodo release under `core_layer/sequence_profiles/`. They do not constitute a separate conceptual layer.
+
+Each card combines final endpoint states, direct evidence counts, ontology support, negative-evidence provenance, toxicity-target categories, quantitative toxicity measurements, and selected physicochemical descriptors for one normalized peptide sequence.
+
+The card collection includes `sequence_cards.jsonl.gz`, detailed sequence- and source-level evidence tables, a JSON Schema, metadata, checksums, and JSON/HTML examples. The complete 41-descriptor matrix remains in the **Descriptor Layer**; only a compact descriptor subset is shown in each card.
 
 # Repository structure
 
@@ -168,11 +191,14 @@ The GitHub repository contains the source code, reproducible notebooks, configur
 │   ├── parsing_data/
 │   ├── integrate_negative_evidence_of_datasets/
 │   ├── integrate_organism_data/
+│   ├── integrate_toxicity_properties/
 │   ├── integrating_and_cleaning_data/
 │   ├── pivoting_data_and_hierarchical_structure/
 │   ├── preprocessing_for_split/
 │   ├── dataset_caracterization/
-│   └── sequence_distribution_analysis/
+│   ├── sequence_distribution_analysis/
+│   ├── sequence_cards/
+│   └── how_to_use_maomao/
 │
 ├── pipelines/
 │   ├── data/
@@ -191,6 +217,7 @@ The GitHub repository contains the source code, reproducible notebooks, configur
 │   ├── maomao/
 │   └── building_models/
 │
+├── CHANGELOG.md
 ├── LICENSE
 ├── pyproject.toml
 └── README.md
@@ -202,11 +229,30 @@ The GitHub repository contains the source code, notebooks, configuration files, 
 
 The complete MAOMAO data release and associated computational artefacts are distributed through a single Zenodo record:
 
-- **MAOMAO data release (version 1.0.0):** [https://doi.org/10.5281/zenodo.22261793](https://doi.org/10.5281/zenodo.22261793)
+- **MAOMAO data release (version 1.1.0):** [https://doi.org/10.5281/zenodo.22312156](https://doi.org/10.5281/zenodo.22312156)
 
-The archived release includes the harmonized peptide toxicity resource, source- and resource-level metadata, provenance records, audit tables, numerical sequence representations, and reproducible endpoint-specific dataset partitions.
+The archived release is organized into distribution layers:
 
-Due to their size and data-distribution requirements, the following directories are not included directly in the GitHub repository:
+```text
+maomao_release/
+├── benchmark_layer/
+├── core_layer/
+│   ├── processed_data/
+│   ├── raw_data/
+│   ├── README.md
+│   └── sequence_profiles/
+├── descriptor_layer/
+├── documentation_layer/
+│   └── results_how_to_use_maomao/
+├── embedding_layer/
+└── README.md
+```
+
+The **Core Layer** contains the harmonized peptide toxicity resource, source- and resource-level metadata, provenance and audit records, standardized quantitative toxicity measurements, and sequence profiles. The **Descriptor Layer** contains sequence-derived descriptors. The **Embedding Layer** contains protein language model and one-hot numerical representations. The **Benchmark Layer** contains reproducible endpoint-specific train/validation/test partitions. The **Documentation Layer** contains release documentation and the derived outputs from the practical MAOMAO usage examples.
+
+The layer directories are Zenodo distribution containers and are not the same as the operational directory structure of the GitHub repository.
+
+Due to their size and data-distribution requirements, the following operational data directories are not included directly in the GitHub repository:
 
 ```text
 maomao/
@@ -220,10 +266,25 @@ maomao/
 │   │   └── <endpoint>/
 │   └── processed_data/
 │       ├── maomao_sequence_pivot.csv
+│       ├── maomao_sequence_pivot_with_toxicity_properties.csv
+│       ├── maomao_toxicity_measurements.csv
 │       ├── maomao_ambiguous_support.csv
 │       ├── audit_endpoint_counts.csv
 │       ├── audit_hierarchy_changes.csv
-│       └── metadata.json
+│       ├── audit_toxicity_property_cross_reference.csv
+│       ├── audit_toxicity_property_unmatched_sequences.csv
+│       ├── metadata.json
+│       └── metadata_toxicity_properties.json
+│
+├── sequence_profiles/
+│   ├── sequence_cards.jsonl.gz
+│   ├── sequence_activity_evidence.csv.gz
+│   ├── sequence_source_evidence.csv.gz
+│   ├── sequence_card_schema.json
+│   ├── metadata.json
+│   ├── README.md
+│   ├── CHECKSUMS.sha256
+│   └── examples/
 │
 ├── numerical_representation_data/
 │   └── maomao/
@@ -238,7 +299,7 @@ maomao/
 
 ## Restoring the project data structure
 
-The directories named `core_layer`, `embedding_layer`, `descriptor_layer`, `benchmark_layer`, and `documentation_layer` organize the Zenodo release according to the conceptual resource layers described in the article. These directories are distribution containers and do not correspond directly to the operational directory structure required by the repository workflows.
+The Zenodo layer directories organize the public release but do not correspond directly to the operational paths used by the repository workflows.
 
 The following instructions restore the Core Layer contents to their expected locations within the cloned MAOMAO repository.
 
@@ -264,9 +325,7 @@ mkdir -p downloads/maomao_release
 Download `core_layer.zip` from Zenodo:
 
 ```bash
-curl -fL \
-  "https://zenodo.org/api/records/22261793/files/core_layer.zip/content" \
-  -o downloads/core_layer.zip
+curl -fL   "https://zenodo.org/api/records/22312156/files/core_layer.zip/content"   -o downloads/core_layer.zip
 ```
 
 ### 3. Extract the Core Layer
@@ -277,25 +336,27 @@ Extract the downloaded archive into the temporary release directory:
 unzip downloads/core_layer.zip -d downloads/maomao_release
 ```
 
-After extraction, the files will have the following intermediate structure:
+After extraction, the files have the following intermediate structure:
 
 ```text
 downloads/
 ├── core_layer.zip
 └── maomao_release/
     └── core_layer/
+        ├── processed_data/
         ├── raw_data/
-        └── processed_data/
+        ├── README.md
+        └── sequence_profiles/
 ```
 
-This is the Zenodo distribution structure. The files must still be copied into the operational repository directories.
+This is the Zenodo distribution structure. The data directories must still be copied into the operational repository locations.
 
 ### 4. Restore the operational directories
 
-Create the directories expected by the repository:
+Create the directories expected by the repository and usage notebooks:
 
 ```bash
-mkdir -p raw_data processed_data
+mkdir -p raw_data processed_data sequence_profiles
 ```
 
 Copy the Core Layer contents to their corresponding operational locations:
@@ -303,43 +364,44 @@ Copy the Core Layer contents to their corresponding operational locations:
 ```bash
 cp -R downloads/maomao_release/core_layer/raw_data/. raw_data/
 cp -R downloads/maomao_release/core_layer/processed_data/. processed_data/
+cp -R downloads/maomao_release/core_layer/sequence_profiles/. sequence_profiles/
 ```
 
 The trailing `/.` copies the contents of each directory without retaining `core_layer` as an additional directory level.
 
 ### 5. Verify the restored data
 
-Confirm that the principal sequence-level resource is available at the location expected by the numerical-representation workflow:
+Confirm that the principal sequence-level resource is available:
 
 ```bash
 test -f processed_data/processed_data/maomao_sequence_pivot.csv
 ```
 
-The restored Core Layer should produce the following operational structure:
+Confirm that the quantitative toxicity measurements are available:
+
+```bash
+test -f processed_data/processed_data/maomao_toxicity_measurements.csv
+```
+
+Confirm that the sequence-card collection is available:
+
+```bash
+test -f sequence_profiles/sequence_cards.jsonl.gz
+```
+
+The restored Core Layer should produce the following operational data structure alongside the cloned repository:
 
 ```text
 maomao/
 ├── raw_data/
-│   └── <source>/
-│
 ├── processed_data/
-│   ├── toxic_effect_classification/
-│   │   └── <source>/
-│   ├── integrating_and_cleaning_data/
-│   │   └── <endpoint>/
-│   └── processed_data/
-│       ├── maomao_sequence_pivot.csv
-│       ├── maomao_ambiguous_support.csv
-│       ├── audit_endpoint_counts.csv
-│       ├── audit_hierarchy_changes.csv
-│       └── metadata.json
-│
+├── sequence_profiles/
 ├── pipelines/
 ├── pyproject.toml
 └── README.md
 ```
 
-> **Note:** The `downloads/maomao_release` directory is a temporary staging location and is not used by the workflows after the data have been copied. If additional Zenodo layers are downloaded, their relevant contents should likewise be copied or moved to the corresponding operational directories at the repository root until the operational project structure is restored. For example, the Embedding Layer contributes the `numerical_representation_data` directory, while the Benchmark Layer contributes the `split_process` directory. The layer name should not be retained as an additional directory level when preparing data for workflow execution. Descriptor and documentation layers may remain in their distributed structure when they are used only for consultation.
+> **Note:** `downloads/maomao_release/` is a temporary staging location and is not used by the workflows after the data have been copied. The Embedding Layer contributes `numerical_representation_data/`, while the Benchmark Layer contributes `split_process/`. The Descriptor and Documentation Layers can remain in their Zenodo distribution structure when used for consultation. In particular, `documentation_layer/results_how_to_use_maomao/` contains derived outputs from the usage notebooks and is not an operational source directory of the GitHub repository.
 
 ## Directory description
 
@@ -348,17 +410,16 @@ maomao/
 | `raw_data/` | Original source files used to construct the resource. |
 | `processed_data/toxic_effect_classification/` | Source-specific parsed and standardized datasets with source metadata. |
 | `processed_data/integrating_and_cleaning_data/` | Endpoint-level integrated positive, negative, ambiguous, organism, and provenance outputs. |
-| `processed_data/processed_data/` | Final MAOMAO master resource, metadata, and audit files. |
-| `notebooks_and_scripts/` | Reproducible notebooks for parsing, integration, hierarchy construction, characterization, and split preparation. |
+| `processed_data/processed_data/` | Final MAOMAO master resource, quantitative toxicity measurements, metadata, and audit files. |
+| `sequence_profiles/` | Sequence-card data restored from the Zenodo Core Layer for direct inspection and reuse. |
+| `notebooks_and_scripts/` | Reproducible notebooks for parsing, integration, hierarchy construction, toxicity-property integration, characterization, sequence-card generation, split preparation, and practical reuse examples. |
 | `src/maomao/` | MAOMAO-specific reusable Python modules. |
 | `src/building_models/` | Supporting utilities for numerical representations, preprocessing, and model-related workflows. |
-| `numerical_representation_data/` | Protein language model embeddings and one-hot representations. |
+| `numerical_representation_data/` | Protein language model embeddings and one-hot representations restored from the Embedding Layer. |
 | `pipelines/` | Configuration-driven Snakemake workflows. |
 | `pipelines/data/` | Endpoint-specific binary datasets prepared for splitting. |
-| `split_process/` | Reproducible train, validation, and test partitions organized by endpoint, dataset variant, strategy, seed, and fold. |
+| `split_process/` | Reproducible train, validation, and test partitions restored from the Benchmark Layer. |
 | `general_configs/` | Shared workflow configuration, including the predefined random seeds. |
-
----
 
 # Software requirements
 
@@ -476,6 +537,10 @@ Ontology-guided hierarchy application
        ↓
 Sequence-level pivot and metadata
        ↓
+Quantitative toxicity-property integration
+       ↓
+Sequence-card generation
+       ↓
 Numerical representation generation
        ↓
 Endpoint-specific dataset preparation
@@ -532,7 +597,31 @@ notebooks_and_scripts/pivoting_data_and_hierarchical_structure/build_maomao_mast
 
 This stage builds the sequence-level endpoint pivot, applies the ontology hierarchy, preserves direct ambiguity, assigns stable sequence identifiers, creates audit tables, compiles resource-level metadata, and writes the final outputs to `processed_data/processed_data/`.
 
----
+## 4. Integrate quantitative toxicity properties
+
+Quantitative HC50, LC50, LD50, and MHC records are standardized and linked to the MAOMAO sequence identifiers through:
+
+```text
+notebooks_and_scripts/integrate_toxicity_properties/integrating_toxicity_properties.ipynb
+```
+
+The resulting measurement, augmented pivot, metadata, and audit files are written to `processed_data/processed_data/`.
+
+## 5. Generate sequence cards
+
+Sequence-card construction is demonstrated in:
+
+```text
+notebooks_and_scripts/sequence_cards/build_sequence_cards.ipynb
+```
+
+Reusable card-generation utilities are implemented under:
+
+```text
+src/maomao/sequence_cards/
+```
+
+The distributed card collection is part of the Core Layer in Zenodo. Individual cards can also be exported as readable JSON and HTML using `notebooks_and_scripts/sequence_cards/export_sequence_card.py`.
 
 # Computational workflows
 
@@ -715,6 +804,33 @@ The `id` column must remain unchanged across the endpoint-specific dataset, benc
 
 ---
 
+# Resource use examples
+
+Practical notebooks demonstrating direct reuse of the released MAOMAO resource are available under:
+
+```text
+notebooks_and_scripts/how_to_use_maomao/
+```
+
+The examples cover:
+
+- locating and loading released MAOMAO assets;
+- descriptive resource characterization;
+- reuse of released numerical representations and benchmark partitions;
+- a minimal neurotoxicity classification example;
+- a quantitative toxicity regression example;
+- sequence-card exploration.
+
+These notebooks are usage demonstrations rather than new MAOMAO benchmark models. Their derived tables and figures are archived in the Zenodo Documentation Layer under:
+
+```text
+documentation_layer/results_how_to_use_maomao/
+```
+
+See `notebooks_and_scripts/how_to_use_maomao/README.md` for details.
+
+---
+
 # Quick start
 
 The following example uses the existing MAOMAO master resource and generates neurotoxicity splits.
@@ -838,14 +954,15 @@ When using MAOMAO, please cite the associated resource publication and archived 
 ## Data release
 
 ```text
-Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data (Version 1.0.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.22261793
+Soto-Garcia, N., García-Vinuesa, J., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma, J., Navarrete, M., Cadet, F., & Medina-Ortiz, D. (2026). MAOMAO: An Ontology-Guided FAIR Resource for Harmonized Peptide Toxicity Data (Version 1.1.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.22312156
 ```
 
 ### Data release BibTeX
 
 ```bibtex
-@dataset{soto2026maomao22261793,
-  author       = {Soto Garcia, Nicole and
+@dataset{soto2026maomao22312156,
+  author       = {Soto-Garcia, Nicole and
+                  Garc{\'i}a-Vinuesa, Juli{\'a}n and
                   Uribe-Paredes, Roberto and
                   Murgas, Leandro and
                   Oróstica, Karen and
@@ -857,9 +974,9 @@ Soto Garcia, N., Uribe-Paredes, R., Murgas, L., Oróstica, K., González-Puelma,
   month        = sep,
   year         = {2026},
   publisher    = {Zenodo},
-  version      = {1.0.0},
-  doi          = {10.5281/zenodo.22261793},
-  url          = {https://doi.org/10.5281/zenodo.22261793}
+  version      = {1.1.0},
+  doi          = {10.5281/zenodo.22312156},
+  url          = {https://doi.org/10.5281/zenodo.22312156}
 }
 ```
 
