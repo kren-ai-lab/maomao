@@ -1017,6 +1017,10 @@ See [LICENSE](LICENSE) for the complete license text.
 
 Individual source datasets may retain their original terms, licenses, and citation requirements. Consult the corresponding source-level metadata and original provider before redistributing or reusing source-specific files.
 
+## Disclaimer on software usage
+
+In this study, some benchmarking experiments relied on third-party tools distributed under *Non-Commercial (NC)* licenses. These NC-licensed tools were executed **exclusively by the academic collaborators** in a non-commercial research setting. The industrial partner did not execute or run any NC-licensed code. Its role was limited to **conceptual contributions and interpretation of results**. Accordingly, the use of NC-licensed software in this work remained strictly within an **academic and non-commercial context**, in compliance with the original license terms.
+
 ---
 
 # Authors and contact
